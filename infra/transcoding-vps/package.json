@@ -1,0 +1,46 @@
+{
+  "name": "transcoding-worker-vps",
+  "version": "1.0.0",
+  "description": "Worker de transcodificación de audio para VPS dedicado",
+  "main": "dist/workers/transcoding-worker.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/workers/transcoding-worker.js",
+    "dev": "tsx src/workers/transcoding-worker.ts",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop transcoding-worker",
+    "pm2:restart": "pm2 restart transcoding-worker",
+    "pm2:logs": "pm2 logs transcoding-worker",
+    "pm2:monit": "pm2 monit",
+    "health": "curl -H 'Authorization: Bearer $WORKER_API_KEY' $BACKEND_API_URL/api/worker/health",
+    "test-ffmpeg": "ffmpeg -version && ffprobe -version",
+    "clean": "rm -rf dist",
+    "setup": "npm install && npm run build"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.0.0",
+    "axios": "^1.5.0",
+    "bull": "^4.11.0",
+    "dotenv": "^16.3.0",
+    "redis": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "prisma": "^5.0.0",
+    "tsx": "^3.12.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "audio",
+    "transcoding",
+    "ffmpeg",
+    "worker",
+    "bull",
+    "redis"
+  ],
+  "author": "Tu Nombre",
+  "license": "MIT"
+}

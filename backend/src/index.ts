@@ -1,0 +1,555 @@
+import 'dotenv/config'
+import express from 'express'
+import cors from 'cors'
+import cookieParser from 'cookie-parser'
+import rateLimit from 'express-rate-limit'
+import { randomBytes } from 'crypto'
+import { PrismaClient } from '@prisma/client'
+import catalogRoutes from './routes/catalog.js';
+import uploadRoutes from './routes/upload.js';
+import workerRoutes from './routes/worker.js';
+import { initializeWebSocketService } from './services/websocket-service.js';
+
+const app = express()
+const prisma = new PrismaClient()
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/api/auth/google/callback'
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000'
+const IS_PROD = process.env.NODE_ENV === 'production'
+
+if (IS_PROD) {
+  // Recomendado si hay proxy/CDN delante (para que "secure cookie" funcione correctamente)
+  app.set('trust proxy', 1)
+}
+
+// Rate limiting básico para endpoints de autenticación
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 60, // hasta 60 requests por ventana
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+app.use(cookieParser())
+app.use(express.json({ limit: '1mb' }))
+
+// Aplica limitador a rutas de auth
+app.use('/api/auth', authLimiter)
+
+// Limpieza periódica de sesiones expiradas (cada hora)
+setInterval(async () => {
+  try {
+    const removed = await prisma.session.deleteMany({
+      where: { expires: { lt: new Date() } },
+    })
+    if (removed.count > 0) {
+      console.log(`[sessions] cleaned ${removed.count} expired`)
+    }
+  } catch (e) {
+    console.error('[sessions] cleanup error:', e)
+  }
+}, 60 * 60 * 1000)
+
+function base64url(input: Buffer | string): string {
+  const buff = typeof input === 'string' ? Buffer.from(input) : input
+  return buff.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+}
+
+function randomToken(bytes = 32): string {
+  return base64url(randomBytes(bytes))
+}
+
+function addDays(date: Date, days: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+// Middleware para exigir sesión
+async function requireAuth(req: any, res: express.Response, next: express.NextFunction) {
+  try {
+    const token = req?.cookies?.session as string | undefined
+    if (!token) {
+      return res.status(401).json({ ok: false, error: 'unauthorized' })
+    }
+    const session = await prisma.session.findUnique({
+      where: { sessionToken: token },
+      include: { user: true }
+    })
+    if (!session || session.expires < new Date()) {
+      res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+      if (session) {
+        await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
+      }
+      return res.status(401).json({ ok: false, error: 'unauthorized' })
+    }
+    req.user = session.user
+    return next()
+  } catch (e) {
+    console.error('[requireAuth] error:', e)
+    return res.status(500).json({ ok: false, error: 'auth_middleware_failed' })
+  }
+}
+
+function isValidLikeType(t?: string): t is 'track' | 'album' {
+  return t === 'track' || t === 'album'
+}
+
+app.get('/api/health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    res.json({ ok: true, db: 'ok' })
+  } catch (e) {
+    console.error('[health] DB error:', e)
+    const message = (e as any)?.message ?? 'unknown'
+    res.status(500).json({ ok: false, error: 'db_unavailable', message })
+  }
+})
+
+// Inicia el flujo OAuth con Google
+app.get('/api/auth/google', async (_req, res) => {
+  try {
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
+      return res.status(500).json({ ok: false, error: 'google_oauth_not_configured' })
+    }
+
+    const state = randomToken(16)
+    res.cookie('ga_state', state, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: IS_PROD,
+      maxAge: 10 * 60 * 1000 // 10 minutos
+    })
+
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      access_type: 'offline',
+      prompt: 'consent'
+    })
+
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
+    return res.redirect(url)
+  } catch (e) {
+    console.error('[auth/google] error:', e)
+    return res.status(500).json({ ok: false, error: 'auth_init_failed' })
+  }
+})
+
+// Callback de Google OAuth
+app.get('/api/auth/google/callback', async (req, res) => {
+  try {
+    const code = typeof req.query.code === 'string' ? req.query.code : undefined
+    const state = typeof req.query.state === 'string' ? req.query.state : undefined
+    const cookieState = (req as any).cookies?.ga_state as string | undefined
+
+    if (!code || !state || !cookieState || state !== cookieState) {
+      return res.status(400).json({ ok: false, error: 'invalid_state_or_code' })
+    }
+
+    res.clearCookie('ga_state', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
+      return res.status(500).json({ ok: false, error: 'google_oauth_not_configured' })
+    }
+
+    const tokenParams = new URLSearchParams({
+      code,
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    })
+
+    const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString()
+    })
+    const tokenJson: any = await tokenResp.json()
+    if (!tokenResp.ok) {
+      console.error('[auth/callback] token error:', tokenJson)
+      return res.status(400).json({ ok: false, error: 'token_exchange_failed', details: tokenJson })
+    }
+
+    const accessToken: string | undefined = tokenJson.access_token
+    const refreshToken: string | undefined = tokenJson.refresh_token
+    const idToken: string | undefined = tokenJson.id_token
+    const expiresIn: number | undefined = tokenJson.expires_in
+
+    const uiResp = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+    const profile: any = await uiResp.json()
+    if (!uiResp.ok) {
+      console.error('[auth/callback] userinfo error:', profile)
+      return res.status(400).json({ ok: false, error: 'userinfo_failed', details: profile })
+    }
+
+    const sub: string = profile.sub
+    const email: string | undefined = profile.email
+    const name: string | undefined = profile.name
+    const picture: string | undefined = profile.picture
+
+    if (!email) {
+      return res.status(400).json({ ok: false, error: 'email_required' })
+    }
+
+    let user = await prisma.user.findUnique({ where: { email } })
+    if (!user) {
+      user = await prisma.user.create({ data: { email, name, image: picture } })
+    } else {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          name: user.name ?? name ?? undefined,
+          image: user.image ?? picture ?? undefined
+        }
+      })
+    }
+
+    // Upsert Account
+    const expiresAt = expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : null
+    await prisma.account.upsert({
+      where: { provider_providerAccountId: { provider: 'google', providerAccountId: sub } },
+      update: {
+        userId: user.id,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: expiresAt,
+        id_token: idToken
+      },
+      create: {
+        userId: user.id,
+        type: 'oauth',
+        provider: 'google',
+        providerAccountId: sub,
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        expires_at: expiresAt,
+        id_token: idToken
+      }
+    })
+
+    // Crear sesión
+    const sessionToken = randomToken(32)
+    const expires = addDays(new Date(), 30)
+    await prisma.session.create({ data: { userId: user.id, sessionToken, expires } })
+
+    res.cookie('session', sessionToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: IS_PROD,
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+    })
+
+    return res.redirect(FRONTEND_URL)
+  } catch (e) {
+    console.error('[auth/google/callback] error:', e)
+    return res.status(500).json({ ok: false, error: 'auth_callback_failed' })
+  }
+})
+
+// Devuelve la sesión actual
+app.get('/api/auth/session', async (req, res) => {
+  try {
+    const token = (req as any).cookies?.session as string | undefined
+    if (!token) return res.json({ authenticated: false })
+
+    const session = await prisma.session.findUnique({
+      where: { sessionToken: token },
+      include: { user: true }
+    })
+    if (!session || session.expires < new Date()) {
+      res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+      if (session) {
+        await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
+      }
+      return res.json({ authenticated: false })
+    }
+
+    const { id, email, name, image } = session.user
+    return res.json({ authenticated: true, user: { id, email, name, image } })
+  } catch (e) {
+    console.error('[auth/session] error:', e)
+    return res.status(500).json({ ok: false, error: 'session_failed' })
+  }
+})
+
+// Endpoint protegido: información del usuario autenticado
+app.get('/api/me', requireAuth, async (req, res) => {
+  const user = (req as any).user as { id: string; email: string | null; name?: string | null; image?: string | null }
+  const { id, email, name, image } = user
+  return res.json({ ok: true, user: { id, email, name, image } })
+})
+
+// Likes de biblioteca
+// Lista likes del usuario autenticado (opcional filtrar por ?type=track|album)
+app.get('/api/library/likes', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const t = typeof req.query.type === 'string' ? req.query.type : undefined
+    if (t && !isValidLikeType(t)) {
+      return res.status(400).json({ ok: false, error: 'invalid_type' })
+    }
+    const likes = await prisma.libraryLike.findMany({
+      where: { userId, ...(t ? { targetType: t } : {}) },
+      orderBy: { createdAt: 'desc' },
+    })
+    return res.json({ ok: true, likes })
+  } catch (e) {
+    console.error('[library/likes:list] error:', e)
+    return res.status(500).json({ ok: false, error: 'likes_list_failed' })
+  }
+})
+
+// Crea un like (idempotente)
+app.post('/api/library/likes', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const { type, id } = req.body || {}
+    if (!isValidLikeType(type) || typeof id !== 'string' || !id) {
+      return res.status(400).json({ ok: false, error: 'invalid_body' })
+    }
+    await prisma.libraryLike.upsert({
+      where: { userId_targetType_targetId: { userId, targetType: type, targetId: id } },
+      update: {},
+      create: { userId, targetType: type, targetId: id },
+    })
+    return res.status(201).json({ ok: true })
+  } catch (e) {
+    console.error('[library/likes:create] error:', e)
+    return res.status(500).json({ ok: false, error: 'like_create_failed' })
+  }
+})
+
+// Elimina un like
+app.delete('/api/library/likes/:type/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const type = req.params.type
+    const id = req.params.id
+    if (!isValidLikeType(type) || !id) {
+      return res.status(400).json({ ok: false, error: 'invalid_params' })
+    }
+    await prisma.libraryLike.delete({
+      where: { userId_targetType_targetId: { userId, targetType: type, targetId: id } },
+    }).catch(() => {})
+    return res.status(204).end()
+  } catch (e) {
+    console.error('[library/likes:delete] error:', e)
+    return res.status(500).json({ ok: false, error: 'like_delete_failed' })
+  }
+})
+
+// Playlists
+// Lista playlists del usuario autenticado
+app.get('/api/playlists', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const playlists = await prisma.playlist.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true, isPublic: true, createdAt: true, updatedAt: true }
+    })
+    return res.json({ ok: true, playlists })
+  } catch (e) {
+    console.error('[playlists:list] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlists_list_failed' })
+  }
+})
+
+// Crea playlist
+app.post('/api/playlists', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const { name, isPublic } = req.body || {}
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ ok: false, error: 'invalid_name' })
+    }
+    const pl = await prisma.playlist.create({
+      data: { userId, name: name.trim(), isPublic: Boolean(isPublic) }
+    })
+    return res.status(201).json({ ok: true, playlist: { id: pl.id, name: pl.name, isPublic: pl.isPublic } })
+  } catch (e) {
+    console.error('[playlists:create] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_create_failed' })
+  }
+})
+
+// Obtiene detalles de una playlist (con items)
+app.get('/api/playlists/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const pl = await prisma.playlist.findFirst({
+      where: { id, userId },
+      include: { items: { orderBy: { position: 'asc' } } }
+    })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    return res.json({ ok: true, playlist: pl })
+  } catch (e) {
+    console.error('[playlists:get] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_get_failed' })
+  }
+})
+
+// Actualiza nombre o visibilidad
+app.patch('/api/playlists/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const { name, isPublic } = req.body || {}
+    const pl = await prisma.playlist.findFirst({ where: { id, userId } })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    const updated = await prisma.playlist.update({
+      where: { id },
+      data: {
+        ...(typeof name === 'string' && name.trim() ? { name: name.trim() } : {}),
+        ...(typeof isPublic === 'boolean' ? { isPublic } : {}),
+      }
+    })
+    return res.json({ ok: true, playlist: updated })
+  } catch (e) {
+    console.error('[playlists:update] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_update_failed' })
+  }
+})
+
+// Elimina playlist
+app.delete('/api/playlists/:id', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const pl = await prisma.playlist.findFirst({ where: { id, userId } })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    await prisma.playlist.delete({ where: { id } })
+    return res.status(204).end()
+  } catch (e) {
+    console.error('[playlists:delete] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_delete_failed' })
+  }
+})
+
+// Añade item a playlist (al final por defecto)
+app.post('/api/playlists/:id/items', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const { trackId, position } = req.body || {}
+    if (typeof trackId !== 'string' || !trackId) {
+      return res.status(400).json({ ok: false, error: 'invalid_track' })
+    }
+    const pl = await prisma.playlist.findFirst({ where: { id, userId } })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    const count = await prisma.playlistItem.count({ where: { playlistId: id } })
+    const pos = Number.isInteger(position) ? Math.max(0, position as number) : count
+    const item = await prisma.playlistItem.create({
+      data: { playlistId: id, trackId, position: pos }
+    })
+    // Si el position solicitado está dentro del rango, empuja los siguientes
+    if (Number.isInteger(position) && (position as number) < count) {
+      await prisma.playlistItem.updateMany({
+        where: { playlistId: id, id: { not: item.id }, position: { gte: pos } },
+        data: { position: { increment: 1 } }
+      })
+    }
+    return res.status(201).json({ ok: true, item })
+  } catch (e) {
+    console.error('[playlists:add_item] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_item_add_failed' })
+  }
+})
+
+// Elimina item de playlist
+app.delete('/api/playlists/:id/items/:itemId', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const itemId = req.params.itemId
+    const pl = await prisma.playlist.findFirst({ where: { id, userId } })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    const item = await prisma.playlistItem.findUnique({ where: { id: itemId } })
+    if (!item || item.playlistId !== id) return res.status(404).json({ ok: false, error: 'item_not_found' })
+    await prisma.$transaction([
+      prisma.playlistItem.delete({ where: { id: itemId } }),
+      prisma.playlistItem.updateMany({
+        where: { playlistId: id, position: { gt: item.position } },
+        data: { position: { decrement: 1 } }
+      })
+    ])
+    return res.status(204).end()
+  } catch (e) {
+    console.error('[playlists:delete_item] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_item_delete_failed' })
+  }
+})
+
+// Reordenar items: acepta array de {id, position}
+app.post('/api/playlists/:id/reorder', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const id = req.params.id
+    const { items } = req.body || {}
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ ok: false, error: 'invalid_items' })
+    }
+    const pl = await prisma.playlist.findFirst({ where: { id, userId } })
+    if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
+    // Validar pertenencia
+    const existing = await prisma.playlistItem.findMany({ where: { playlistId: id } })
+    const map = new Map(existing.map(i => [i.id, i]))
+    for (const it of items) {
+      if (!it || typeof it.id !== 'string' || typeof it.position !== 'number' || !map.has(it.id)) {
+        return res.status(400).json({ ok: false, error: 'invalid_item_entry' })
+      }
+    }
+    await prisma.$transaction(items.map((it: any) =>
+      prisma.playlistItem.update({ where: { id: it.id }, data: { position: it.position } })
+    ))
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('[playlists:reorder] error:', e)
+    return res.status(500).json({ ok: false, error: 'playlist_reorder_failed' })
+  }
+})
+
+// Cierra sesión
+app.post('/api/auth/signout', async (req, res) => {
+  try {
+    const token = (req as any).cookies?.session as string | undefined
+    if (token) {
+      await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
+    }
+    res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+    return res.status(204).end()
+  } catch (e) {
+    console.error('[auth/signout] error:', e)
+    return res.status(500).json({ ok: false, error: 'signout_failed' })
+  }
+})
+
+// Rutas del catálogo musical
+app.use('/api/catalog', catalogRoutes)
+app.use('/api/upload', uploadRoutes)
+app.use('/api/worker', workerRoutes)
+
+const PORT = Number(process.env.PORT || 4000)
+
+// Crear servidor HTTP para WebSockets
+import { createServer } from 'http'
+const httpServer = createServer(app)
+
+// Inicializar WebSocket service
+const wsService = initializeWebSocketService(httpServer)
+
+httpServer.listen(PORT, () => {
+  console.log(`[backend] listening on http://localhost:${PORT}`)
+  console.log(`[websocket] WebSocket server initialized`)
+})

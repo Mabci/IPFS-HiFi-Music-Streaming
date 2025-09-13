@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>HLS.js + Helia IPFS Loader Example</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .controls {
+      margin: 20px 0;
+    }
+    .status {
+      background: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    audio {
+      width: 100%;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>HLS.js + Helia IPFS Loader</h1>
+  <p>This example demonstrates hybrid P2P + Gateway streaming with Helia.</p>
+  
+  <div class="controls">
+    <label>
+      <input type="checkbox" id="hybridMode" checked> 
+      Hybrid Mode (P2P + Gateway fallback)
+    </label>
+    <br>
+    <label>
+      IPFS Hash: 
+      <input type="text" id="ipfsHash" value="QmdpAidwAsBGptFB3b6A9Pyi5coEbgjHrL3K2Qrsutmj9K" style="width: 400px;">
+    </label>
+    <br>
+    <button id="loadBtn">Load Stream</button>
+  </div>
+
+  <div class="status" id="status">Initializing Helia...</div>
+  
+  <audio id="audio" controls></audio>
+
+  <!-- Dependencies -->
+  <script type="module">
+    import { createHelia } from 'https://esm.sh/helia@5.5.1'
+    import { unixfs } from 'https://esm.sh/@helia/unixfs@5.1.0'
+    import Hls from 'https://esm.sh/hls.js@1.5.15'
+    import HlsjsHeliaLoader from '../dist/index.esm.js'
+
+    let helia = null
+    let fs = null
+    let hls = null
+
+    const status = document.getElementById('status')
+    const audio = document.getElementById('audio')
+    const loadBtn = document.getElementById('loadBtn')
+    const hybridModeCheckbox = document.getElementById('hybridMode')
+    const ipfsHashInput = document.getElementById('ipfsHash')
+
+    function updateStatus(message) {
+      status.textContent = `${new Date().toLocaleTimeString()}: ${message}`
+      console.log(message)
+    }
+
+    async function initHelia() {
+      try {
+        updateStatus('Creating Helia node...')
+        helia = await createHelia()
+        fs = unixfs(helia)
+        updateStatus('Helia node ready!')
+        loadBtn.disabled = false
+      } catch (error) {
+        updateStatus(`Helia initialization failed: ${error.message}`)
+      }
+    }
+
+    function setupHLS() {
+      if (hls) {
+        hls.destroy()
+      }
+
+      if (!Hls.isSupported()) {
+        updateStatus('HLS.js not supported in this browser')
+        return
+      }
+
+      const hybridMode = hybridModeCheckbox.checked
+      const ipfsHash = ipfsHashInput.value.trim()
+
+      if (!ipfsHash) {
+        updateStatus('Please enter an IPFS hash')
+        return
+      }
+
+      updateStatus(`Setting up HLS with ${hybridMode ? 'hybrid' : 'P2P only'} mode...`)
+
+      // Configure HLS with Helia loader
+      Hls.DefaultConfig.loader = HlsjsHeliaLoader
+      Hls.DefaultConfig.debug = true
+
+      hls = new Hls()
+      
+      // Configure loader
+      hls.config.helia = helia
+      hls.config.fs = fs
+      hls.config.ipfsHash = ipfsHash
+      hls.config.hybridMode = hybridMode
+      hls.config.gatewayUrl = 'https://ipfs.io/ipfs' // Fallback gateway
+      hls.config.p2pTimeout = 3000
+      hls.config.debug = (msg) => updateStatus(`HLS: ${msg}`)
+
+      // Event listeners
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        updateStatus('Manifest parsed successfully!')
+        audio.play().catch(e => updateStatus(`Autoplay failed: ${e.message}`))
+      })
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        updateStatus(`HLS Error: ${data.type} - ${data.details}`)
+        if (data.fatal) {
+          updateStatus('Fatal error, destroying HLS instance')
+          hls.destroy()
+        }
+      })
+
+      hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
+        updateStatus(`Fragment loaded: ${data.frag.url} (${data.payload.byteLength} bytes)`)
+      })
+
+      // Load the stream
+      hls.loadSource('master.m3u8')
+      hls.attachMedia(audio)
+      
+      updateStatus('HLS configured, loading stream...')
+    }
+
+    // Event listeners
+    loadBtn.addEventListener('click', setupHLS)
+    loadBtn.disabled = true
+
+    // Initialize
+    initHelia()
+  </script>
+</body>
+</html>

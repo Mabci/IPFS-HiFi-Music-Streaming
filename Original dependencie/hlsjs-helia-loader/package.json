@@ -1,0 +1,41 @@
+{
+  "name": "hlsjs-helia-loader",
+  "version": "1.0.0",
+  "description": "Helia IPFS loader for hls.js with hybrid P2P+Gateway support",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "node examples/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tu-usuario/hlsjs-helia-loader.git"
+  },
+  "keywords": [
+    "hls",
+    "ipfs",
+    "helia",
+    "streaming",
+    "p2p",
+    "hybrid"
+  ],
+  "author": "Tu Nombre",
+  "license": "MIT",
+  "dependencies": {
+    "helia": "^4.2.0",
+    "@helia/unixfs": "^3.0.6"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^26.0.0",
+    "@rollup/plugin-node-resolve": "^15.2.0",
+    "@rollup/plugin-terser": "^0.4.4",
+    "rollup": "^4.0.0"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "src"
+  ]
+}

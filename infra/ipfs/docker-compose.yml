@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Nodo IPFS principal (Kubo)
+  ipfs-node:
+    image: ipfs/kubo:latest
+    container_name: music-ipfs-node
+    ports:
+      - "4001:4001"     # Swarm port
+      - "5001:5001"     # API port
+      - "8080:8080"     # Gateway port (interno)
+    volumes:
+      - ./data/ipfs:/data/ipfs
+      - ./config/ipfs-config.json:/data/ipfs/config:ro
+    environment:
+      - IPFS_PROFILE=server
+      - IPFS_PATH=/data/ipfs
+    restart: unless-stopped
+    networks:
+      - ipfs-network
+
+  # Proxy Gateway con cache inteligente
+  gateway-proxy:
+    build: 
+      context: ./gateway-proxy
+      dockerfile: Dockerfile
+    container_name: music-gateway-proxy
+    ports:
+      - "3001:3001"     # Puerto público del gateway
+    environment:
+      - NODE_ENV=production
+      - IPFS_API_URL=http://ipfs-node:5001
+      - IPFS_GATEWAY_URL=http://ipfs-node:8080
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/music_gateway
+      - CACHE_TTL=3600
+      - MAX_CACHE_SIZE=1GB
+    depends_on:
+      - ipfs-node
+      - redis
+      - postgres
+    restart: unless-stopped
+    networks:
+      - ipfs-network
+
+  # Cache Redis para contenido frecuente
+  redis:
+    image: redis:7-alpine
+    container_name: music-redis-cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    networks:
+      - ipfs-network
+
+  # Base de datos para indexación
+  postgres:
+    image: postgres:15-alpine
+    container_name: music-postgres-gateway
+    ports:
+      - "5433:5432"     # Puerto diferente para no conflicto
+    environment:
+      - POSTGRES_DB=music_gateway
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    networks:
+      - ipfs-network
+
+  # Monitoreo opcional (Prometheus + Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: music-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - ipfs-network
+    profiles:
+      - monitoring
+
+networks:
+  ipfs-network:
+    driver: bridge
+
+volumes:
+  ipfs-data:
+  redis-data:
+  postgres-data:
+  prometheus-data:

@@ -1,0 +1,70 @@
+# Node
+node_modules/
+.npmrc
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+.next/
+dist/
+build/
+.cache/
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env
+.env
+.env.*
+
+# Secrets in docs
+Dependencies Docs/prisma-main/.db.env
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python (por si aplica en scripts)
+__pycache__/
+*.pyc
+.venv/
+
+# Misc
+*.local
+*.swp
+
+# VPS Configuration (contiene credenciales sensibles)
+infra/transcoding-vps/.env
+infra/transcoding-vps/transcoding-worker.tar.gz
+
+# Backend secrets
+backend/.env
+backend/.env.*
+
+# Archivos temporales de audio y scripts
+scripts/
+
+# Logs del sistema
+*.log.*
+/var/log/
+
+# Archivos de configuración con credenciales
+**/config/production.json
+**/config/local.json
+
+# Archivos binarios y bases de datos de prueba
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/miniflare-*
+**/.wrangler/
+**/state/
+
+# Dependencias externas (muy pesadas para Git)
+Dependencies Docs/
