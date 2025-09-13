@@ -35,13 +35,13 @@ export async function extractFromHttp(url: string, byteCount = 1024 * 1024): Pro
     const res = await fetch(url, { signal: ctrl.signal })
     if (!res.body) throw new Error('No body stream')
     const reader = res.body.getReader()
-    const chunks: Uint8Array[] = []
+    const chunks: BlobPart[] = []
     let received = 0
     while (received < byteCount) {
       const { value, done } = await reader.read()
       if (done) break
       if (value) {
-        chunks.push(value)
+        chunks.push(new Uint8Array(value))
         received += value.byteLength
         if (received >= byteCount) break
       }
