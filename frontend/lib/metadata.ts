@@ -68,7 +68,7 @@ export async function extractFromBlob(blob: Blob): Promise<TrackMetadata> {
     if (common.picture && common.picture.length > 0) {
       const pic = common.picture[0]
       const type = pic.format || 'image/jpeg'
-      const url = URL.createObjectURL(new Blob([pic.data], { type }))
+      const url = URL.createObjectURL(new Blob([new Uint8Array(pic.data)], { type }))
       coverUrl = url
     }
 
