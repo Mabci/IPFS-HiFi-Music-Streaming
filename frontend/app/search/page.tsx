@@ -1,5 +1,6 @@
-export default function SearchPage({ searchParams }: { searchParams?: { q?: string } }) {
-  const q = (searchParams?.q || '').toString()
+export default async function SearchPage({ searchParams }: { searchParams?: Promise<{ q?: string }> }) {
+  const params = await searchParams
+  const q = (params?.q || '').toString()
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Buscar</h1>

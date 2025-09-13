@@ -1,13 +1,6 @@
 "use client"
 
-import dynamic from 'next/dynamic'
-
-const PlayIcon = dynamic(() => import('lucide-react').then(m => m.Play), { ssr: false })
-const HeadphonesIcon = dynamic(() => import('lucide-react').then(m => m.Headphones), { ssr: false })
-const ZapIcon = dynamic(() => import('lucide-react').then(m => m.Zap), { ssr: false })
-const ShieldIcon = dynamic(() => import('lucide-react').then(m => m.Shield), { ssr: false })
-const GlobeIcon = dynamic(() => import('lucide-react').then(m => m.Globe), { ssr: false })
-const CheckIcon = dynamic(() => import('lucide-react').then(m => m.Check), { ssr: false })
+import { Play, Headphones, Zap, Shield, Globe, Check } from 'lucide-react'
 
 export default function LandingPage() {
   return (
@@ -29,7 +22,7 @@ export default function LandingPage() {
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <button className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-4 rounded-xl text-lg font-semibold flex items-center gap-3 transition-all hover:scale-105">
-                <PlayIcon size={24} />
+                <Play size={24} />
                 Comenzar a Escuchar
               </button>
               <button className="border border-border hover:bg-muted px-8 py-4 rounded-xl text-lg font-semibold transition-colors">
@@ -52,19 +45,19 @@ export default function LandingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
-              icon={<ZapIcon size={32} />}
+              icon={<Zap size={32} />}
               title="Ultra Rápido"
               description="Streaming P2P con fallback HTTP para máxima velocidad y disponibilidad"
               gradient="from-blue-500 to-cyan-500"
             />
             <FeatureCard
-              icon={<HeadphonesIcon size={32} />}
+              icon={<Headphones size={32} />}
               title="Calidad Premium"
               description="Soporte nativo para FLAC, AAC y formatos lossless de alta fidelidad"
               gradient="from-purple-500 to-pink-500"
             />
             <FeatureCard
-              icon={<ShieldIcon size={32} />}
+              icon={<Shield size={32} />}
               title="Descentralizado"
               description="Sin servidores centrales. Tu música distribuida en la red IPFS global"
               gradient="from-green-500 to-emerald-500"
@@ -161,7 +154,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4">
           <div className="bg-card border rounded-2xl p-8 md:p-12 space-y-6">
             <div className="flex items-center gap-3 justify-center">
-              <GlobeIcon size={32} className="text-primary" />
+              <Globe size={32} className="text-primary" />
               <h3 className="text-2xl font-semibold">Tecnología IPFS</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center">
@@ -262,7 +255,7 @@ function PricingCard({
       <div className="space-y-3 my-8">
         {features.map((feature, index) => (
           <div key={index} className="flex items-center gap-3">
-            <CheckIcon size={16} className="text-green-500 flex-shrink-0" />
+            <Check size={16} className="text-green-500 flex-shrink-0" />
             <span className="text-sm">{feature}</span>
           </div>
         ))}
