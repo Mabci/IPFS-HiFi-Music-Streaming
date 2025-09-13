@@ -1,14 +1,17 @@
 import { Play, Shuffle, Heart, MoreHorizontal, Clock } from 'lucide-react'
 
 interface ArtistPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
-export default function ArtistPage({ params }: ArtistPageProps) {
+export default async function ArtistPage({ params }: ArtistPageProps) {
+  // Await params in Next.js 15
+  const { id } = await params
+  
   // Por ahora, generar datos mock basados en el ID
-  const artistName = params.id.split('-').map(word => 
+  const artistName = id.split('-').map(word => 
     word.charAt(0).toUpperCase() + word.slice(1)
   ).join(' ')
 
