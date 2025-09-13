@@ -23,9 +23,9 @@ export async function getUnixFS(): Promise<UnixFS> {
 // Descarga el archivo desde Helia (P2P/HTTP trustless si aplica) y devuelve un Blob
 export async function fetchFileToBlob(cid: string): Promise<Blob> {
   const fs = await getUnixFS()
-  const chunks: Uint8Array[] = []
+  const chunks: BlobPart[] = []
   for await (const chunk of fs.cat(CID.parse(cid))) {
-    chunks.push(chunk)
+    chunks.push(new Uint8Array(chunk))
   }
   return new Blob(chunks)
 }
