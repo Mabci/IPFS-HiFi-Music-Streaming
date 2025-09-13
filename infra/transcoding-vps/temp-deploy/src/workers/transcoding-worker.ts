@@ -297,8 +297,7 @@ async function uploadFileToIPFS(filePath: string): Promise<string> {
     console.log(`[IPFS] Subido ${fileName} -> ${cid}`);
     return cid;
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Error subiendo archivo a IPFS: ${errorMessage}`);
+    throw new Error(`Error subiendo archivo a IPFS: ${error.message}`);
   }
 }
 
@@ -373,8 +372,7 @@ async function notifyBackend(event: string, data: any) {
       timeout: 5000
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error notificando al backend:', errorMessage);
+    console.error('Error notificando al backend:', error.message);
   }
 }
 

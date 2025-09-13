@@ -7,7 +7,7 @@ set -e
 
 # Configuración
 VPS_USER="transcoding-worker"
-VPS_HOST="your-vps-ip"
+VPS_HOST="216.238.92.78"
 VPS_PATH="/opt/transcoding-worker"
 BACKEND_PATH="../../backend"
 
