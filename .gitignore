@@ -64,7 +64,7 @@ scripts/
 **/*.db
 **/miniflare-*
 **/.wrangler/
-**/state/
+# **/state/ - Comentado para permitir player state
 
 # Dependencias externas (muy pesadas para Git)
 Dependencies Docs/
