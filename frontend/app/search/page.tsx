@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Music, User, Disc, Play, Clock, Heart } from 'lucide-react';
 import SearchBar from '../../components/SearchBar';
@@ -30,7 +30,7 @@ interface SearchResult {
   albumCount?: number;
 }
 
-export default function SearchPage() {
+function SearchPageContent() {
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   
@@ -44,17 +44,23 @@ export default function SearchPage() {
   const [query, setQuery] = useState(initialQuery);
 
   useEffect(() => {
-    if (initialQuery) {
+    if (initialQuery && typeof window !== 'undefined') {
       performSearch(initialQuery);
     }
   }, [initialQuery]);
 
   const performSearch = async (searchQuery: string) => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim() || typeof window === 'undefined') return;
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=50`);
+      const backendUrl = process.env.NODE_ENV === 'production' 
+        ? 'https://ipfs-hifi-music-streaming.onrender.com'
+        : 'http://localhost:4000';
+      
+      const response = await fetch(`${backendUrl}/api/search?q=${encodeURIComponent(searchQuery)}&limit=50`, {
+        credentials: 'include'
+      });
       if (response.ok) {
         const data = await response.json();
         setResults(data.results);
@@ -260,5 +266,20 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white">Cargando búsqueda...</p>
+        </div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }
