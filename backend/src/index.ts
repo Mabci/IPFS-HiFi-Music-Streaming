@@ -9,6 +9,23 @@ import catalogRoutes from './routes/catalog.js';
 import uploadRoutes from './routes/upload.js';
 import workerRoutes from './routes/worker.js';
 import { initializeWebSocketService } from './services/websocket-service.js';
+import {
+  isValidEmail,
+  isValidPassword,
+  isValidUsername,
+  hashPassword,
+  verifyPassword,
+  generateUniqueUsername,
+  createUserSession,
+  findUserByEmail,
+  findUserByUsername,
+  isUsernameAvailable,
+  createUserWithPassword,
+  linkOAuthAccount,
+  base64url,
+  randomToken,
+  addDays
+} from './services/auth-utils.js';
 
 const app = express()
 const prisma = new PrismaClient()
@@ -53,20 +70,6 @@ setInterval(async () => {
   }
 }, 60 * 60 * 1000)
 
-function base64url(input: Buffer | string): string {
-  const buff = typeof input === 'string' ? Buffer.from(input) : input
-  return buff.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-}
-
-function randomToken(bytes = 32): string {
-  return base64url(randomBytes(bytes))
-}
-
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date)
-  d.setDate(d.getDate() + days)
-  return d
-}
 
 // Middleware para exigir sesión
 async function requireAuth(req: any, res: express.Response, next: express.NextFunction) {
@@ -201,8 +204,12 @@ app.get('/api/auth/google/callback', async (req, res) => {
       return res.status(400).json({ ok: false, error: 'email_required' })
     }
 
+    // Buscar usuario existente por email
     let user = await prisma.user.findUnique({ where: { email } })
+    let isNewUser = false
+    
     if (!user) {
+      // Crear nuevo usuario
       user = await prisma.user.create({ 
         data: { 
           id: randomToken(16),
@@ -210,20 +217,32 @@ app.get('/api/auth/google/callback', async (req, res) => {
           updatedAt: new Date()
         }
       })
+      isNewUser = true
+    }
+    
+    // Crear o actualizar perfil de usuario si es nuevo y se proporciona información
+    if (isNewUser && name) {
+      // Generar username único basado en email
+      let baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '')
+      let username = baseUsername
+      let counter = 1
       
-      // Crear perfil de usuario si se proporciona información
-      if (name) {
-        await prisma.userProfile.create({
-          data: {
-            userId: user.id,
-            username: email.split('@')[0], // Usar parte del email como username inicial
-            displayName: name,
-            bio: null,
-            avatarUrl: picture,
-            isPublic: true
-          }
-        })
+      // Asegurar que el username sea único
+      while (await prisma.userProfile.findUnique({ where: { username } })) {
+        username = `${baseUsername}${counter}`
+        counter++
       }
+      
+      await prisma.userProfile.create({
+        data: {
+          userId: user.id,
+          username,
+          displayName: name,
+          bio: null,
+          avatarUrl: picture,
+          isPublic: true
+        }
+      })
     }
 
     // Upsert Account
@@ -551,6 +570,272 @@ app.post('/api/playlists/:id/reorder', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[playlists:reorder] error:', e)
     return res.status(500).json({ ok: false, error: 'playlist_reorder_failed' })
+  }
+})
+
+// Registro con email/password
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, username } = req.body || {}
+    
+    // Validaciones
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ ok: false, error: 'invalid_email' })
+    }
+    
+    if (!password || !isValidPassword(password)) {
+      return res.status(400).json({ ok: false, error: 'invalid_password', message: 'Password must be 8-128 characters' })
+    }
+    
+    if (username && !isValidUsername(username)) {
+      return res.status(400).json({ ok: false, error: 'invalid_username', message: 'Username must be 3-30 alphanumeric characters' })
+    }
+    
+    // Verificar si el email ya existe
+    const existingUser = await findUserByEmail(email)
+    if (existingUser) {
+      return res.status(409).json({ ok: false, error: 'email_already_exists' })
+    }
+    
+    // Verificar si el username ya existe (si se proporciona)
+    if (username && !(await isUsernameAvailable(username))) {
+      return res.status(409).json({ ok: false, error: 'username_taken' })
+    }
+    
+    // Crear usuario
+    const user = await createUserWithPassword(email, password, username)
+    
+    // Crear sesión
+    const sessionToken = await createUserSession(user.id)
+    
+    res.cookie('session', sessionToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: IS_PROD,
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+    })
+    
+    return res.status(201).json({ 
+      ok: true, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        needsUsername: !username 
+      } 
+    })
+  } catch (e) {
+    console.error('[auth/register] error:', e)
+    return res.status(500).json({ ok: false, error: 'registration_failed' })
+  }
+})
+
+// Login con email/password
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {}
+    
+    if (!email || !password) {
+      return res.status(400).json({ ok: false, error: 'email_and_password_required' })
+    }
+    
+    // Buscar usuario por email
+    const user = await findUserByEmail(email)
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({ ok: false, error: 'invalid_credentials' })
+    }
+    
+    // Verificar password
+    const isValidPassword = await verifyPassword(password, user.passwordHash)
+    if (!isValidPassword) {
+      return res.status(401).json({ ok: false, error: 'invalid_credentials' })
+    }
+    
+    // Crear sesión
+    const sessionToken = await createUserSession(user.id)
+    
+    res.cookie('session', sessionToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: IS_PROD,
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+    })
+    
+    return res.json({ 
+      ok: true, 
+      user: { 
+        id: user.id, 
+        email: user.email,
+        hasUsername: !!user.UserProfile?.username
+      } 
+    })
+  } catch (e) {
+    console.error('[auth/login] error:', e)
+    return res.status(500).json({ ok: false, error: 'login_failed' })
+  }
+})
+
+// Verificar disponibilidad de username
+app.get('/api/auth/check-username/:username', async (req, res) => {
+  try {
+    const { username } = req.params
+    
+    if (!isValidUsername(username)) {
+      return res.status(400).json({ ok: false, error: 'invalid_username' })
+    }
+    
+    const available = await isUsernameAvailable(username)
+    return res.json({ ok: true, available })
+  } catch (e) {
+    console.error('[auth/check-username] error:', e)
+    return res.status(500).json({ ok: false, error: 'check_failed' })
+  }
+})
+
+// Establecer username (para usuarios que no lo tienen)
+app.post('/api/auth/set-username', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const { username } = req.body || {}
+    
+    if (!username || !isValidUsername(username)) {
+      return res.status(400).json({ ok: false, error: 'invalid_username' })
+    }
+    
+    // Verificar si el usuario ya tiene username
+    const existingProfile = await prisma.userProfile.findUnique({
+      where: { userId }
+    })
+    
+    if (existingProfile) {
+      return res.status(409).json({ ok: false, error: 'username_already_set' })
+    }
+    
+    // Verificar disponibilidad
+    if (!(await isUsernameAvailable(username))) {
+      return res.status(409).json({ ok: false, error: 'username_taken' })
+    }
+    
+    // Crear perfil de usuario
+    await prisma.userProfile.create({
+      data: {
+        userId,
+        username,
+        displayName: username,
+        isPublic: true
+      }
+    })
+    
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('[auth/set-username] error:', e)
+    return res.status(500).json({ ok: false, error: 'username_set_failed' })
+  }
+})
+
+// Agregar password a cuenta OAuth existente
+app.post('/api/auth/add-password', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const { password } = req.body || {}
+    
+    if (!password || !isValidPassword(password)) {
+      return res.status(400).json({ ok: false, error: 'invalid_password', message: 'Password must be 8-128 characters' })
+    }
+    
+    // Verificar que el usuario no tenga ya password
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'user_not_found' })
+    }
+    
+    if (user.passwordHash) {
+      return res.status(409).json({ ok: false, error: 'password_already_exists' })
+    }
+    
+    // Agregar password hash
+    const passwordHash = await hashPassword(password)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash }
+    })
+    
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('[auth/add-password] error:', e)
+    return res.status(500).json({ ok: false, error: 'add_password_failed' })
+  }
+})
+
+// Obtener métodos de autenticación del usuario
+app.get('/api/auth/methods', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        Account: {
+          select: {
+            provider: true,
+            type: true
+          }
+        }
+      }
+    })
+    
+    if (!user) {
+      return res.status(404).json({ ok: false, error: 'user_not_found' })
+    }
+    
+    const methods = {
+      email: !!user.passwordHash,
+      google: user.Account.some(acc => acc.provider === 'google'),
+      providers: user.Account.map(acc => acc.provider)
+    }
+    
+    return res.json({ ok: true, methods })
+  } catch (e) {
+    console.error('[auth/methods] error:', e)
+    return res.status(500).json({ ok: false, error: 'methods_failed' })
+  }
+})
+
+// Cambiar password (para usuarios que ya tienen password)
+app.post('/api/auth/change-password', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id as string
+    const { currentPassword, newPassword } = req.body || {}
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ ok: false, error: 'current_and_new_password_required' })
+    }
+    
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({ ok: false, error: 'invalid_new_password', message: 'Password must be 8-128 characters' })
+    }
+    
+    const user = await prisma.user.findUnique({ where: { id: userId } })
+    if (!user || !user.passwordHash) {
+      return res.status(400).json({ ok: false, error: 'no_password_set' })
+    }
+    
+    // Verificar password actual
+    const isValidCurrent = await verifyPassword(currentPassword, user.passwordHash)
+    if (!isValidCurrent) {
+      return res.status(401).json({ ok: false, error: 'invalid_current_password' })
+    }
+    
+    // Actualizar password
+    const newPasswordHash = await hashPassword(newPassword)
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash }
+    })
+    
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('[auth/change-password] error:', e)
+    return res.status(500).json({ ok: false, error: 'change_password_failed' })
   }
 })
 
