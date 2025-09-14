@@ -20,7 +20,7 @@ const storage = multer.diskStorage({
       await fs.mkdir(fullPath, { recursive: true });
       cb(null, fullPath);
     } catch (error) {
-      cb(error, '');
+      cb(null, '');
     }
   },
   filename: (req, file, cb) => {
@@ -159,7 +159,7 @@ router.post('/cover', requireAuth, multer({
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Formato de imagen no soportado. Use JPG, PNG o WebP'), false);
+      cb(null, false);
     }
   },
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB

@@ -77,7 +77,7 @@ async function requireAuth(req: any, res: express.Response, next: express.NextFu
     }
     const session = await prisma.session.findUnique({
       where: { sessionToken: token },
-      include: { user: true }
+      include: { User: true }
     })
     if (!session || session.expires < new Date()) {
       res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
@@ -86,7 +86,7 @@ async function requireAuth(req: any, res: express.Response, next: express.NextFu
       }
       return res.status(401).json({ ok: false, error: 'unauthorized' })
     }
-    req.user = session.user
+    req.user = session.User
     return next()
   } catch (e) {
     console.error('[requireAuth] error:', e)
@@ -203,15 +203,27 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     let user = await prisma.user.findUnique({ where: { email } })
     if (!user) {
-      user = await prisma.user.create({ data: { email, name, image: picture } })
-    } else {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          name: user.name ?? name ?? undefined,
-          image: user.image ?? picture ?? undefined
+      user = await prisma.user.create({ 
+        data: { 
+          id: randomToken(16),
+          email,
+          updatedAt: new Date()
         }
       })
+      
+      // Crear perfil de usuario si se proporciona información
+      if (name) {
+        await prisma.userProfile.create({
+          data: {
+            userId: user.id,
+            username: email.split('@')[0], // Usar parte del email como username inicial
+            displayName: name,
+            bio: null,
+            avatarUrl: picture,
+            isPublic: true
+          }
+        })
+      }
     }
 
     // Upsert Account
@@ -226,6 +238,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
         id_token: idToken
       },
       create: {
+        id: randomToken(16),
         userId: user.id,
         type: 'oauth',
         provider: 'google',
@@ -240,7 +253,12 @@ app.get('/api/auth/google/callback', async (req, res) => {
     // Crear sesión
     const sessionToken = randomToken(32)
     const expires = addDays(new Date(), 30)
-    await prisma.session.create({ data: { userId: user.id, sessionToken, expires } })
+    await prisma.session.create({ data: { 
+      id: randomToken(16),
+      userId: user.id, 
+      sessionToken, 
+      expires 
+    } })
 
     res.cookie('session', sessionToken, {
       httpOnly: true,
@@ -264,7 +282,7 @@ app.get('/api/auth/session', async (req, res) => {
 
     const session = await prisma.session.findUnique({
       where: { sessionToken: token },
-      include: { user: true }
+      include: { User: true }
     })
     if (!session || session.expires < new Date()) {
       res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
@@ -274,8 +292,8 @@ app.get('/api/auth/session', async (req, res) => {
       return res.json({ authenticated: false })
     }
 
-    const { id, email, name, image } = session.user
-    return res.json({ authenticated: true, user: { id, email, name, image } })
+    const { id, email } = session.User
+    return res.json({ authenticated: true, user: { id, email } })
   } catch (e) {
     console.error('[auth/session] error:', e)
     return res.status(500).json({ ok: false, error: 'session_failed' })
@@ -284,9 +302,9 @@ app.get('/api/auth/session', async (req, res) => {
 
 // Endpoint protegido: información del usuario autenticado
 app.get('/api/me', requireAuth, async (req, res) => {
-  const user = (req as any).user as { id: string; email: string | null; name?: string | null; image?: string | null }
-  const { id, email, name, image } = user
-  return res.json({ ok: true, user: { id, email, name, image } })
+  const user = (req as any).user as { id: string; email: string | null }
+  const { id, email } = user
+  return res.json({ ok: true, user: { id, email } })
 })
 
 // Likes de biblioteca
@@ -320,7 +338,12 @@ app.post('/api/library/likes', requireAuth, async (req, res) => {
     await prisma.libraryLike.upsert({
       where: { userId_targetType_targetId: { userId, targetType: type, targetId: id } },
       update: {},
-      create: { userId, targetType: type, targetId: id },
+      create: { 
+        id: randomToken(16), // Generar ID único para el like
+        userId, 
+        targetType: type, 
+        targetId: id 
+      },
     })
     return res.status(201).json({ ok: true })
   } catch (e) {
@@ -374,7 +397,13 @@ app.post('/api/playlists', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'invalid_name' })
     }
     const pl = await prisma.playlist.create({
-      data: { userId, name: name.trim(), isPublic: Boolean(isPublic) }
+      data: { 
+        id: randomToken(16),
+        userId, 
+        name: name.trim(), 
+        isPublic: Boolean(isPublic),
+        updatedAt: new Date()
+      }
     })
     return res.status(201).json({ ok: true, playlist: { id: pl.id, name: pl.name, isPublic: pl.isPublic } })
   } catch (e) {
@@ -390,7 +419,7 @@ app.get('/api/playlists/:id', requireAuth, async (req, res) => {
     const id = req.params.id
     const pl = await prisma.playlist.findFirst({
       where: { id, userId },
-      include: { items: { orderBy: { position: 'asc' } } }
+      include: { PlaylistItem: { orderBy: { position: 'asc' } } }
     })
     if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
     return res.json({ ok: true, playlist: pl })
@@ -451,7 +480,12 @@ app.post('/api/playlists/:id/items', requireAuth, async (req, res) => {
     const count = await prisma.playlistItem.count({ where: { playlistId: id } })
     const pos = Number.isInteger(position) ? Math.max(0, position as number) : count
     const item = await prisma.playlistItem.create({
-      data: { playlistId: id, trackId, position: pos }
+      data: { 
+        id: randomToken(16),
+        playlistId: id, 
+        trackId, 
+        position: pos 
+      }
     })
     // Si el position solicitado está dentro del rango, empuja los siguientes
     if (Number.isInteger(position) && (position as number) < count) {

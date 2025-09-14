@@ -12,41 +12,38 @@ const prisma = new PrismaClient()
  */
 export async function upsertArtistProfile(artistData: {
   name: string
-  country?: string | null
-  genres: string[]
+  bio?: string | null
 }): Promise<any> {
   try {
-    // Usar consulta SQL directa para evitar problemas de esquema
-    const existingArtist = await prisma.$queryRaw`
-      SELECT id, name, country, genres, "isVerified", "followerCount", "createdAt", "updatedAt"
-      FROM "Artist" 
-      WHERE name = ${artistData.name} 
-      LIMIT 1
-    ` as any[]
+    // Buscar artista existente por nombre
+    const existingArtist = await prisma.artistProfile.findFirst({
+      where: { artistName: artistData.name }
+    })
 
-    if (existingArtist.length > 0) {
-      // Actualizar artista existente
-      const artist = existingArtist[0]
-      const updatedArtist = await prisma.$queryRaw`
-        UPDATE "Artist" 
-        SET 
-          country = COALESCE(${artistData.country}, country),
-          genres = CASE WHEN ${artistData.genres.length} > 0 THEN ${artistData.genres}::text[] ELSE genres END,
-          "updatedAt" = NOW()
-        WHERE id = ${artist.id}
-        RETURNING id, name, country, genres, "isVerified", "followerCount", "createdAt", "updatedAt"
-      ` as any[]
+    if (existingArtist) {
+      // Actualizar artista existente si se proporciona nueva información
+      const updatedArtist = await prisma.artistProfile.update({
+        where: { id: existingArtist.id },
+        data: {
+          bio: artistData.bio || existingArtist.bio,
+          updatedAt: new Date()
+        }
+      })
       
-      return updatedArtist[0]
+      return updatedArtist
     } else {
       // Crear nuevo artista
-      const newArtist = await prisma.$queryRaw`
-        INSERT INTO "Artist" (name, country, genres, "isVerified", "followerCount", "createdAt", "updatedAt")
-        VALUES (${artistData.name}, ${artistData.country}, ${artistData.genres}::text[], false, 0, NOW(), NOW())
-        RETURNING id, name, country, genres, "isVerified", "followerCount", "createdAt", "updatedAt"
-      ` as any[]
+      const newArtist = await prisma.artistProfile.create({
+        data: {
+          userId: 'system-artist', // ID temporal para artistas del sistema
+          artistName: artistData.name,
+          bio: artistData.bio,
+          isVerified: false,
+          followerCount: 0
+        }
+      })
       
-      return newArtist[0]
+      return newArtist
     }
   } catch (error) {
     console.error('[AlbumUtils] Error in upsertArtistProfile:', error)
@@ -114,9 +111,9 @@ export function parseBitDepth(bitDepth?: string): number | null {
 export async function updateGlobalStats(): Promise<void> {
   try {
     const [totalArtists, totalAlbums, totalTracks] = await Promise.all([
-      prisma.artist.count(),
+      prisma.artistProfile.count(),
       prisma.album.count({ where: { isPublic: true } }),
-      prisma.track.count({ where: { isPublic: true } })
+      prisma.track.count()
     ])
 
     await prisma.globalStats.upsert({
