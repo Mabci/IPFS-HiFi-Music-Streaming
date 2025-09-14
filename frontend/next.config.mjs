@@ -9,8 +9,8 @@ const nextConfig = {
   
   // Configuración para Vercel deployment
   env: {
-    BACKEND_URL: process.env.BACKEND_URL || 'https://nyauwu.com',
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'https://nyauwu.com',
+    BACKEND_URL: process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com',
+    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com',
   },
   
   // Reescritura de rutas API para el backend
@@ -18,7 +18,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/:path*`,
+        destination: `${process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com'}/api/:path*`,
       },
     ];
   },

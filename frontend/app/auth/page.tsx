@@ -11,7 +11,7 @@ import { Loader2, Music } from 'lucide-react'
 
 const API_BASE = process.env.NODE_ENV === 'production' 
   ? 'https://ipfs-hifi-music-streaming.onrender.com'
-  : 'http://localhost:3001'
+  : 'http://localhost:4000'
 
 export default function AuthPage() {
   const [isLoading, setIsLoading] = useState(false)

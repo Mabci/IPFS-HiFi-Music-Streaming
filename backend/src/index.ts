@@ -283,7 +283,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
-      domain: IS_PROD ? '.nyauwu.com' : undefined,
+      // No establecer domain para permitir cookies cross-origin
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
 
@@ -611,7 +611,7 @@ app.post('/api/auth/register', async (req, res) => {
     
     res.cookie('session', sessionToken, {
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
@@ -656,7 +656,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     res.cookie('session', sessionToken, {
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })

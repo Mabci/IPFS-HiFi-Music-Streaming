@@ -1,4 +1,4 @@
-export const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000'
+export const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://ipfs-hifi-music-streaming.onrender.com' : 'http://localhost:4000')
 
 export type SessionResponse = {
   authenticated: boolean
