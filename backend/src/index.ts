@@ -281,8 +281,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     res.cookie('session', sessionToken, {
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
+      domain: IS_PROD ? '.nyauwu.com' : undefined,
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
 
