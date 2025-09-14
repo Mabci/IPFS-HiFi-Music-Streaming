@@ -4,24 +4,31 @@ import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { getSession, signInGoogle, signOut, handleOAuthCallback, type SessionResponse } from "@/lib/auth"
+import SearchBar from "./SearchBar"
 
-const SearchIcon = dynamic(() => import("lucide-react").then(m => m.Search), { ssr: false })
 const BellIcon = dynamic(() => import("lucide-react").then(m => m.Bell), { ssr: false })
 const MusicIcon = dynamic(() => import("lucide-react").then(m => m.Music), { ssr: false })
 const SparklesIcon = dynamic(() => import("lucide-react").then(m => m.Sparkles), { ssr: false })
 
 export default function Topbar() {
-  const [q, setQ] = useState("")
   const [session, setSession] = useState<SessionResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [searchFocused, setSearchFocused] = useState(false)
   const router = useRouter()
   
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const term = q.trim()
-    if (!term) return
-    router.push(`/search?q=${encodeURIComponent(term)}`)
+  const handleSearchResultSelect = (result: any) => {
+    // Navegar al resultado seleccionado
+    switch (result.type) {
+      case 'artist':
+        router.push(`/artist/${result.id}`);
+        break;
+      case 'album':
+        router.push(`/album/${result.id}`);
+        break;
+      case 'track':
+        // Reproducir track o navegar al álbum
+        router.push(`/album/${result.album?.id}`);
+        break;
+    }
   }
 
   useEffect(() => {
@@ -76,31 +83,14 @@ export default function Topbar() {
             </div>
           </div>
 
-          {/* Barra de búsqueda mejorada */}
-          <form onSubmit={onSubmit} className="flex-1 max-w-md mx-8">
-            <div className={`relative transition-all duration-normal ${
-              searchFocused ? 'transform scale-105' : ''
-            }`}>
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <SearchIcon size={18} className="text-text-tertiary" />
-              </div>
-              <input
-                placeholder="Buscar canciones, álbumes, artistas…"
-                className={`w-full pl-10 pr-4 py-3 bg-bg-secondary/80 border border-border-primary rounded-xl text-text-primary placeholder:text-text-muted outline-none transition-all duration-normal ${
-                  searchFocused 
-                    ? 'border-accent-primary shadow-glow bg-bg-secondary' 
-                    : 'hover:border-border-secondary'
-                }`}
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-              />
-              {searchFocused && (
-                <div className="absolute inset-0 bg-gradient-primary rounded-xl opacity-10 pointer-events-none" />
-              )}
-            </div>
-          </form>
+          {/* Barra de búsqueda integrada */}
+          <div className="flex-1 max-w-md mx-8">
+            <SearchBar
+              onResultSelect={handleSearchResultSelect}
+              placeholder="Buscar canciones, álbumes, artistas…"
+              className="w-full"
+            />
+          </div>
 
           {/* Acciones del usuario */}
           <div className="flex items-center gap-3">

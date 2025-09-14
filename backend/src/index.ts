@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client'
 import catalogRoutes from './routes/catalog.js';
 import uploadRoutes from './routes/upload.js';
 import workerRoutes from './routes/worker.js';
+import searchRoutes from './routes/search.js';
 import { initializeWebSocketService } from './services/websocket-service.js';
 import {
   isValidEmail,
@@ -896,6 +897,7 @@ app.post('/api/auth/signout', async (req, res) => {
 app.use('/api/catalog', catalogRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/worker', workerRoutes)
+app.use('/api/search', searchRoutes)
 
 const PORT = Number(process.env.PORT || 4000)
 
