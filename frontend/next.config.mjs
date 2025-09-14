@@ -7,6 +7,16 @@ const nextConfig = {
   // Fijamos la raíz del workspace al directorio del repo (padre de frontend)
   outputFileTracingRoot: path.resolve(process.cwd(), '..'),
   
+  // Configuración específica para resolver paths en Vercel
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Asegurar que los alias de TypeScript funcionen correctamente
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(process.cwd()),
+    }
+    return config
+  },
+  
   // Configuración para Vercel deployment
   env: {
     BACKEND_URL: process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com',
