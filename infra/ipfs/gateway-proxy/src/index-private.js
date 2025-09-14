@@ -400,7 +400,7 @@ app.get('/health', async (req, res) => {
 
   // Verificar IPFS
   try {
-    await axios.get(`${IPFS_API_URL}/api/v0/version`, { timeout: 5000 })
+    await axios.post(`${IPFS_API_URL}/api/v0/version`, {}, { timeout: 5000 })
     health.services.ipfs = 'connected'
   } catch (error) {
     health.services.ipfs = 'disconnected'
