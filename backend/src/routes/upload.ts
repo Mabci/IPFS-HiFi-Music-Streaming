@@ -66,38 +66,54 @@ const upload = multer({
 
 // Middleware de autenticación
 const requireAuth = async (req: any, res: any, next: any) => {
+  console.log('🔐 Auth middleware called for:', req.originalUrl);
+  console.log('🍪 Cookies received:', Object.keys(req.cookies || {}));
+  
   try {
     const sessionToken = req.cookies.sessionToken;
     if (!sessionToken) {
+      console.log('❌ No session token found');
       return res.status(401).json({ error: 'No autenticado' });
     }
 
+    console.log('🔍 Looking for session with token:', sessionToken.substring(0, 10) + '...');
+    
     const session = await prisma.session.findUnique({
       where: { sessionToken },
       include: { User: true }
     });
 
     if (!session || session.expires < new Date()) {
+      console.log('❌ Session not found or expired');
       return res.status(401).json({ error: 'Sesión expirada' });
     }
 
+    console.log('✅ User authenticated:', session.User.email);
     req.user = session.User;
     next();
   } catch (error) {
-    console.error('Error en autenticación:', error);
+    console.error('💥 Error en autenticación:', error);
     res.status(500).json({ error: 'Error de autenticación' });
   }
 };
 
 // POST /api/upload/files - Subir archivos de audio
 router.post('/files', requireAuth, upload.array('audioFiles', 20), async (req: any, res) => {
+  console.log('🚀 Upload endpoint called');
+  console.log('📁 Files received:', req.files?.length || 0);
+  console.log('👤 User:', req.user?.email);
+  console.log('🆔 Session ID:', req.body?.sessionId);
+  
   try {
     const files = req.files as Express.Multer.File[];
     const { sessionId } = req.body;
 
     if (!files || files.length === 0) {
+      console.log('❌ No files received');
       return res.status(400).json({ error: 'No se subieron archivos' });
     }
+
+    console.log('✅ Processing', files.length, 'files');
 
     // Extraer metadatos básicos de los archivos
     const fileMetadata = await Promise.all(
@@ -133,7 +149,8 @@ router.post('/files', requireAuth, upload.array('audioFiles', 20), async (req: a
     });
 
   } catch (error) {
-    console.error('Error subiendo archivos:', error);
+    console.error('💥 Error subiendo archivos:', error);
+    console.error('📊 Error stack:', error instanceof Error ? error.stack : 'No stack available');
     res.status(500).json({ 
       error: 'Error subiendo archivos',
       details: error instanceof Error ? error.message : 'Error desconocido'

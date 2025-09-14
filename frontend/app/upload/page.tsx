@@ -28,6 +28,14 @@ export default function UploadPage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Verificar si estamos en el dominio correcto para upload
+        if (typeof window !== 'undefined' && !window.location.hostname.includes('artist.')) {
+          // Redirigir al subdominio de artistas
+          const artistUrl = window.location.href.replace(window.location.hostname, 'artist.nyauwu.com');
+          window.location.href = artistUrl;
+          return;
+        }
+
         const session = await getSession();
         if (!session.authenticated) {
           router.push('/auth');
@@ -111,11 +119,15 @@ export default function UploadPage() {
         // Manejar diferentes tipos de errores
         let errorMessage = 'Error subiendo archivos';
         
+        // Primero intentamos leer como texto para evitar el error de stream
+        const responseText = await response.text();
+        
         try {
-          const errorData = await response.json();
+          // Intentamos parsear como JSON
+          const errorData = JSON.parse(responseText);
           errorMessage = errorData.error || errorMessage;
         } catch (jsonError) {
-          // Si no es JSON válido, probablemente es un error de autenticación
+          // Si no es JSON válido, usar el texto directamente
           if (response.status === 401) {
             errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
             // Redirigir a login después de un momento
@@ -125,8 +137,7 @@ export default function UploadPage() {
           } else if (response.status === 403) {
             errorMessage = 'No tienes permisos para subir archivos.';
           } else {
-            const textError = await response.text();
-            errorMessage = `Error del servidor: ${textError.substring(0, 100)}`;
+            errorMessage = `Error del servidor: ${responseText.substring(0, 100)}`;
           }
         }
         
