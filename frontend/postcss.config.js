@@ -4,3 +4,5 @@ module.exports = {
     autoprefixer: {},
   },
 };
+
+// Configuración optimizada para Tailwind CSS v4
