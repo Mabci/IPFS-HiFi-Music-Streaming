@@ -40,7 +40,7 @@ export default function Topbar() {
   }, [])
 
   const onSignIn = () => {
-    signInGoogle()
+    router.push('/auth')
   }
   
   const onSignOut = async () => {
