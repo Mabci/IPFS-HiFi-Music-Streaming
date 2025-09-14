@@ -279,15 +279,9 @@ app.get('/api/auth/google/callback', async (req, res) => {
       expires 
     } })
 
-    res.cookie('session', sessionToken, {
-      httpOnly: true,
-      sameSite: IS_PROD ? 'none' : 'lax',
-      secure: IS_PROD,
-      // No establecer domain para permitir cookies cross-origin
-      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
-    })
-
-    return res.redirect(FRONTEND_URL)
+    // No establecer cookie directamente en redirect cross-domain
+    // En su lugar, pasar token como parámetro para que frontend lo procese
+    return res.redirect(`${FRONTEND_URL}?oauth_token=${sessionToken}`)
   } catch (e) {
     console.error('[auth/google/callback] error:', e)
     return res.status(500).json({ ok: false, error: 'auth_callback_failed' })
@@ -840,6 +834,46 @@ app.post('/api/auth/change-password', requireAuth, async (req, res) => {
   } catch (e) {
     console.error('[auth/change-password] error:', e)
     return res.status(500).json({ ok: false, error: 'change_password_failed' })
+  }
+})
+
+// Intercambiar token OAuth por cookie de sesión
+app.post('/api/auth/exchange-token', async (req, res) => {
+  try {
+    const { token } = req.body || {}
+    
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ ok: false, error: 'token_required' })
+    }
+    
+    // Verificar que el token de sesión existe y es válido
+    const session = await prisma.session.findUnique({
+      where: { sessionToken: token },
+      include: { User: true }
+    })
+    
+    if (!session || session.expires < new Date()) {
+      return res.status(401).json({ ok: false, error: 'invalid_or_expired_token' })
+    }
+    
+    // Establecer cookie de sesión
+    res.cookie('session', token, {
+      httpOnly: true,
+      sameSite: IS_PROD ? 'none' : 'lax',
+      secure: IS_PROD,
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+    })
+    
+    return res.json({ 
+      ok: true, 
+      user: { 
+        id: session.User.id, 
+        email: session.User.email 
+      } 
+    })
+  } catch (e) {
+    console.error('[auth/exchange-token] error:', e)
+    return res.status(500).json({ ok: false, error: 'token_exchange_failed' })
   }
 })
 

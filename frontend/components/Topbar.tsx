@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { getSession, signInGoogle, signOut, type SessionResponse } from "@/lib/auth"
+import { getSession, signInGoogle, signOut, handleOAuthCallback, type SessionResponse } from "@/lib/auth"
 
 const SearchIcon = dynamic(() => import("lucide-react").then(m => m.Search), { ssr: false })
 const BellIcon = dynamic(() => import("lucide-react").then(m => m.Bell), { ssr: false })
@@ -28,6 +28,13 @@ export default function Topbar() {
     let mounted = true
     ;(async () => {
       try {
+        // Primero manejar callback de OAuth si existe
+        const oauthSuccess = await handleOAuthCallback()
+        if (oauthSuccess) {
+          console.log('OAuth token intercambiado exitosamente')
+        }
+        
+        // Luego obtener sesión actual
         const s = await getSession()
         if (mounted) setSession(s)
       } finally {

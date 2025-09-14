@@ -30,3 +30,47 @@ export async function signOut() {
     credentials: 'include',
   })
 }
+
+// Intercambiar token OAuth por cookie de sesión
+export async function exchangeOAuthToken(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${backendBase}/api/auth/exchange-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token })
+    })
+    
+    return response.ok
+  } catch (error) {
+    console.error('Error exchanging OAuth token:', error)
+    return false
+  }
+}
+
+// Detectar y procesar token OAuth en URL
+export function handleOAuthCallback(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(false)
+      return
+    }
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const oauthToken = urlParams.get('oauth_token')
+    
+    if (!oauthToken) {
+      resolve(false)
+      return
+    }
+    
+    // Limpiar URL inmediatamente
+    const cleanUrl = window.location.pathname
+    window.history.replaceState({}, document.title, cleanUrl)
+    
+    // Intercambiar token por cookie
+    exchangeOAuthToken(oauthToken).then(success => {
+      resolve(success)
+    })
+  })
+}
