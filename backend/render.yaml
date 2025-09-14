@@ -3,7 +3,7 @@ services:
     name: ipfs-music-backend
     env: node
     plan: starter
-    buildCommand: npm ci && npx prisma db pull && npx prisma generate && npx prisma migrate deploy && npm run build
+    buildCommand: npm ci && npx prisma db push --force-reset && npx prisma generate && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
