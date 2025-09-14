@@ -10,7 +10,6 @@ services:
       - "8080:8080"     # Gateway port (interno)
     volumes:
       - ./data/ipfs:/data/ipfs
-      - ./config/ipfs-config.json:/data/ipfs/config:ro
     environment:
       - IPFS_PROFILE=server
       - IPFS_PATH=/data/ipfs
