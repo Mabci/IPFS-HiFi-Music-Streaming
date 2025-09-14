@@ -12,15 +12,21 @@ const prisma = new PrismaClient();
 // Configuración de multer para upload de archivos
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
-    const uploadPath = process.env.TEMP_UPLOAD_PATH || './temp/uploads';
+    const uploadPath = process.env.TEMP_UPLOAD_PATH || '/tmp/uploads';
     const sessionId = req.body.sessionId || uuidv4();
     const fullPath = path.join(uploadPath, sessionId);
     
+    console.log('📁 Upload path:', uploadPath);
+    console.log('🆔 Session ID:', sessionId);
+    console.log('📂 Full path:', fullPath);
+    
     try {
       await fs.mkdir(fullPath, { recursive: true });
+      console.log('✅ Directory created successfully');
       cb(null, fullPath);
     } catch (error) {
-      cb(null, '');
+      console.error('❌ Error creating directory:', error);
+      cb(error as Error, '');
     }
   },
   filename: (req, file, cb) => {
