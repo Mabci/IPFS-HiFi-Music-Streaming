@@ -19,12 +19,12 @@ services:
     networks:
       - ipfs-network
 
-  # Proxy Gateway con cache inteligente
+  # Private Gateway Proxy con validación de CIDs
   gateway-proxy:
     build: 
       context: ./gateway-proxy
       dockerfile: Dockerfile
-    container_name: music-gateway-proxy
+    container_name: music-private-gateway
     ports:
       - "3001:3001"     # Puerto público del gateway
     environment:
@@ -33,6 +33,7 @@ services:
       - IPFS_GATEWAY_URL=http://ipfs-node:8080
       - REDIS_URL=redis://redis:6379
       - DATABASE_URL=postgresql://postgres:password@postgres:5432/music_gateway
+      - MAIN_DATABASE_URL=postgresql://user:password@your-backend-host:5432/your_main_db
       - CACHE_TTL=3600
       - MAX_CACHE_SIZE=1GB
     depends_on:
