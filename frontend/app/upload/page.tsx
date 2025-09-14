@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDropzone } from 'react-dropzone';
 import { Upload, Music, AlertCircle, CheckCircle } from 'lucide-react';
+import { getSession } from '@/lib/auth';
 
 interface UploadedFile {
   id: string;
@@ -21,6 +22,26 @@ export default function UploadPage() {
   const [sessionId] = useState(() => crypto.randomUUID());
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  // Verificar autenticación al cargar la página
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const session = await getSession();
+        if (!session.authenticated) {
+          router.push('/auth');
+          return;
+        }
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error('Error verificando autenticación:', error);
+        router.push('/auth');
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
     setUploadError(null);
@@ -87,8 +108,29 @@ export default function UploadPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error subiendo archivos');
+        // Manejar diferentes tipos de errores
+        let errorMessage = 'Error subiendo archivos';
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // Si no es JSON válido, probablemente es un error de autenticación
+          if (response.status === 401) {
+            errorMessage = 'Sesión expirada. Por favor, inicia sesión nuevamente.';
+            // Redirigir a login después de un momento
+            setTimeout(() => {
+              router.push('/auth');
+            }, 2000);
+          } else if (response.status === 403) {
+            errorMessage = 'No tienes permisos para subir archivos.';
+          } else {
+            const textError = await response.text();
+            errorMessage = `Error del servidor: ${textError.substring(0, 100)}`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -141,6 +183,18 @@ export default function UploadPage() {
         return <Music className="w-5 h-5 text-gray-400" />;
     }
   };
+
+  // Mostrar loading mientras se verifica autenticación
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white">Verificando autenticación...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
