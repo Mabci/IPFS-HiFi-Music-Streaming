@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # Nodo IPFS principal (Kubo)
@@ -27,15 +26,8 @@ services:
     container_name: music-private-gateway
     ports:
       - "3001:3001"     # Puerto público del gateway
-    environment:
-      - NODE_ENV=production
-      - IPFS_API_URL=http://ipfs-node:5001
-      - IPFS_GATEWAY_URL=http://ipfs-node:8080
-      - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgresql://postgres:password@postgres:5432/music_gateway
-      - MAIN_DATABASE_URL=postgresql://user:password@your-backend-host:5432/your_main_db
-      - CACHE_TTL=3600
-      - MAX_CACHE_SIZE=1GB
+    env_file:
+      - ./gateway-proxy/.env
     depends_on:
       - ipfs-node
       - redis
@@ -66,7 +58,7 @@ services:
     environment:
       - POSTGRES_DB=music_gateway
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=t2nhWvXNgtxkU7iywPuioHjpl
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       - ./init/init.sql:/docker-entrypoint-initdb.d/init.sql
