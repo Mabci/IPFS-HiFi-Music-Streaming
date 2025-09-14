@@ -1,8 +1,6 @@
 module.exports = {
   plugins: {
-    '@tailwindcss/postcss': {},
+    tailwindcss: {},
     autoprefixer: {},
   },
 };
-
-// Configuración optimizada para Tailwind CSS v4
