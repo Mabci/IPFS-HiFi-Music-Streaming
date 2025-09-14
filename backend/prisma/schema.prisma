@@ -25,25 +25,27 @@ model Account {
   User              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([provider])
+  @@index([type])
 }
 
 model Album {
-  id               String         @id @default(cuid())
-  artistProfileId  String
+  id               String        @id @default(cuid())
   title            String
-  description      String
   year             Int
-  genre            String
+  albumCid         String        @unique
   coverCid         String
-  albumCid         String         @unique
+  description      String
   totalTracks      Int
   totalDurationSec Int
-  uploadedAt       DateTime       @default(now())
-  isPublic         Boolean        @default(true)
-  playCount        BigInt         @default(0)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  ArtistProfile    ArtistProfile  @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
+  isPublic         Boolean       @default(true)
+  playCount        BigInt        @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  artistProfileId  String
+  genre            String
+  uploadedAt       DateTime      @default(now())
+  ArtistProfile    ArtistProfile @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
   Track            Track[]
 
   @@index([isPublic])
@@ -51,7 +53,6 @@ model Album {
   @@index([uploadedAt(sort: Desc)])
   @@index([genre])
 }
-
 
 model GlobalStats {
   id                String   @id
@@ -98,7 +99,6 @@ model PlaylistItem {
   @@index([playlistId, position])
 }
 
-
 model Session {
   id           String   @id
   userId       String
@@ -108,41 +108,42 @@ model Session {
 }
 
 model Track {
-  id               String         @id @default(cuid())
-  albumId          String
-  title            String
-  trackNumber      Int
-  durationSec      Int
-  trackCid         String         @unique
-  lowQualityCid    String
-  highQualityCid   String
-  maxQualityCid    String
-  playCount        BigInt         @default(0)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  Album            Album          @relation(fields: [albumId], references: [id], onDelete: Cascade)
-  PlaylistItem     PlaylistItem[]
+  id             String         @id @default(cuid())
+  albumId        String
+  title          String
+  durationSec    Int
+  trackCid       String         @unique
+  playCount      BigInt         @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  highQualityCid String
+  lowQualityCid  String
+  maxQualityCid  String
+  trackNumber    Int
+  PlaylistItem   PlaylistItem[]
+  Album          Album          @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
   @@index([trackNumber])
   @@index([playCount(sort: Desc)])
   @@index([albumId])
 }
 
-
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String?
+  id            String          @id @default(cuid())
+  email         String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   emailVerified DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  passwordHash  String?
   Account       Account[]
+  ArtistProfile ArtistProfile?
   LibraryLike   LibraryLike[]
   Playlist      Playlist[]
+  ProcessingJob ProcessingJob[]
   Session       Session[]
   UserProfile   UserProfile?
-  ArtistProfile ArtistProfile?
-  ProcessingJob ProcessingJob[]
+
+  @@index([emailVerified], map: "User_email_verified_idx")
 }
 
 model UserProfile {
@@ -162,18 +163,18 @@ model UserProfile {
 }
 
 model ArtistProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  artistName   String
-  bio          String?
-  isVerified   Boolean  @default(false)
-  followerCount Int     @default(0)
-  totalPlays   BigInt   @default(0)
-  totalAlbums  Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  Album        Album[]
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  artistName    String
+  bio           String?
+  isVerified    Boolean  @default(false)
+  followerCount Int      @default(0)
+  totalPlays    BigInt   @default(0)
+  totalAlbums   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  Album         Album[]
+  User          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([artistName])
   @@index([isVerified])
@@ -182,15 +183,15 @@ model ArtistProfile {
 }
 
 model ProcessingJob {
-  id          String   @id @default(cuid())
-  userId      String
-  jobId       String   @unique
-  status      String   // pending, processing, completed, failed
-  albumData   Json     // Metadatos temporales del álbum
+  id           String    @id @default(cuid())
+  userId       String
+  jobId        String    @unique
+  status       String
+  albumData    Json
   errorMessage String?
-  createdAt   DateTime @default(now())
-  completedAt DateTime?
-  User        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+  User         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([createdAt(sort: Desc)])
