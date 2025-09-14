@@ -557,7 +557,7 @@ app.post('/api/playlists/:id/reorder', requireAuth, async (req, res) => {
     if (!pl) return res.status(404).json({ ok: false, error: 'not_found' })
     // Validar pertenencia
     const existing = await prisma.playlistItem.findMany({ where: { playlistId: id } })
-    const map = new Map(existing.map(i => [i.id, i]))
+    const map = new Map(existing.map((i: any) => [i.id, i]))
     for (const it of items) {
       if (!it || typeof it.id !== 'string' || typeof it.position !== 'number' || !map.has(it.id)) {
         return res.status(400).json({ ok: false, error: 'invalid_item_entry' })
@@ -789,8 +789,8 @@ app.get('/api/auth/methods', requireAuth, async (req, res) => {
     
     const methods = {
       email: !!user.passwordHash,
-      google: user.Account.some(acc => acc.provider === 'google'),
-      providers: user.Account.map(acc => acc.provider)
+      google: user.Account.some((acc: { provider: string }) => acc.provider === 'google'),
+      providers: user.Account.map((acc: { provider: string }) => acc.provider)
     }
     
     return res.json({ ok: true, methods })
@@ -814,7 +814,10 @@ app.post('/api/auth/change-password', requireAuth, async (req, res) => {
       return res.status(400).json({ ok: false, error: 'invalid_new_password', message: 'Password must be 8-128 characters' })
     }
     
-    const user = await prisma.user.findUnique({ where: { id: userId } })
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      select: { id: true, email: true, passwordHash: true }
+    })
     if (!user || !user.passwordHash) {
       return res.status(400).json({ ok: false, error: 'no_password_set' })
     }
