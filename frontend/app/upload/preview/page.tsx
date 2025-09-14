@@ -99,10 +99,8 @@ export default function PreviewPage() {
       // Limpiar sessionStorage
       sessionStorage.removeItem('uploadSession');
       
-      // Redirigir a página de estado después de un momento
-      setTimeout(() => {
-        router.push(`/upload/status/${result.jobId}`);
-      }, 2000);
+      // Redirigir a página de progreso inmediatamente
+      router.push(`/upload/status/${result.jobId}`);
 
     } catch (error) {
       console.error('Error submitting album:', error);

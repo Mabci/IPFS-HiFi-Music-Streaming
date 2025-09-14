@@ -9,6 +9,9 @@ import catalogRoutes from './routes/catalog.js';
 import uploadRoutes from './routes/upload.js';
 import workerRoutes from './routes/worker.js';
 import searchRoutes from './routes/search.js';
+import vpsStatusRoutes from './routes/vps-status.js';
+import ipfsStatusRoutes from './routes/ipfs-status.js';
+import { subdomainHandler, requireArtistDomain } from './middleware/subdomain-handler.js';
 import { initializeWebSocketService } from './services/websocket-service.js';
 import {
   isValidEmail,
@@ -35,6 +38,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ''
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || ''
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:4000/api/auth/google/callback'
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000'
+const ARTIST_FRONTEND_URL = process.env.ARTIST_FRONTEND_URL || 'http://localhost:3000'
 const IS_PROD = process.env.NODE_ENV === 'production'
 
 if (IS_PROD) {
@@ -50,9 +54,23 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-app.use(cors({ origin: FRONTEND_URL, credentials: true }))
+// CORS configurado para múltiples dominios
+const allowedOrigins = [
+  FRONTEND_URL,
+  ARTIST_FRONTEND_URL,
+  'https://nyauwu.com',
+  'https://artist.nyauwu.com'
+].filter(Boolean);
+
+app.use(cors({ 
+  origin: allowedOrigins, 
+  credentials: true 
+}))
 app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
+
+// Middleware para detectar subdominios
+app.use(subdomainHandler)
 
 // Aplica limitador a rutas de auth
 app.use('/api/auth', authLimiter)
@@ -893,11 +911,15 @@ app.post('/api/auth/signout', async (req, res) => {
   }
 })
 
-// Rutas del catálogo musical
+// Rutas del catálogo musical (disponibles en ambos dominios)
 app.use('/api/catalog', catalogRoutes)
-app.use('/api/upload', uploadRoutes)
-app.use('/api/worker', workerRoutes)
 app.use('/api/search', searchRoutes)
+
+// Rutas específicas para artistas (solo en artist.nyauwu.com)
+app.use('/api/upload', requireArtistDomain, uploadRoutes)
+app.use('/api/worker', requireArtistDomain, workerRoutes)
+app.use('/api/vps', requireArtistDomain, vpsStatusRoutes)
+app.use('/api/ipfs', requireArtistDomain, ipfsStatusRoutes)
 
 const PORT = Number(process.env.PORT || 4000)
 

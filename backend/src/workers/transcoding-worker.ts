@@ -5,6 +5,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { vpsTranscodingService } from '../services/vps-transcoding-service.js';
+import { ipfsGatewayService } from '../services/ipfs-gateway-service.js';
+import { getWebSocketService } from '../services/websocket-service.js';
 
 const prisma = new PrismaClient();
 
@@ -25,6 +28,8 @@ const WORKER_CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '2');
 const TEMP_WORK_DIR = process.env.TEMP_WORK_DIR || '/tmp/audio-processing';
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:4000';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
+const VPS_ENABLED = process.env.VPS_ENABLED === 'true';
+const FALLBACK_TO_LOCAL = process.env.FALLBACK_TO_LOCAL !== 'false';
 
 // Interfaz para los datos del trabajo
 interface AudioProcessingJobData {
@@ -52,8 +57,24 @@ audioProcessingQueue.process(WORKER_CONCURRENCY, async (job: Bull.Job<AudioProce
   const { jobId, userId, albumData, tempUploadPath } = job.data;
   
   console.log(`[Worker] Iniciando procesamiento del trabajo: ${jobId}`);
+  console.log(`[Worker] VPS habilitado: ${VPS_ENABLED}`);
   
   try {
+    // Intentar usar VPS si está habilitado
+    if (VPS_ENABLED && vpsTranscodingService.isEnabled()) {
+      console.log(`[Worker] Intentando procesar con VPS: ${jobId}`);
+      const vpsResult = await processWithVPS(job.data);
+      if (vpsResult.success) {
+        console.log(`[Worker] Trabajo completado exitosamente con VPS: ${jobId}`);
+        return vpsResult;
+      } else if (!FALLBACK_TO_LOCAL) {
+        throw new Error(`VPS falló y fallback está deshabilitado: ${vpsResult.message}`);
+      }
+      console.log(`[Worker] VPS falló, usando procesamiento local: ${vpsResult.message}`);
+    }
+    
+    // Procesamiento local (código original)
+    console.log(`[Worker] Procesando localmente: ${jobId}`);
     // Crear directorio de trabajo temporal
     const workDir = path.join(TEMP_WORK_DIR, jobId);
     await fs.mkdir(workDir, { recursive: true });
@@ -102,6 +123,111 @@ audioProcessingQueue.process(WORKER_CONCURRENCY, async (job: Bull.Job<AudioProce
     throw error;
   }
 });
+
+// Función para procesar con VPS de transcodificación
+async function processWithVPS(jobData: AudioProcessingJobData): Promise<any> {
+  const { jobId, userId, albumData } = jobData;
+  
+  try {
+    // Verificar salud del VPS
+    const isHealthy = await vpsTranscodingService.checkVPSHealth();
+    if (!isHealthy) {
+      return { success: false, message: 'VPS no está disponible o no responde' };
+    }
+    
+    // Notificar inicio al backend
+    await notifyBackend('job_started', { jobId, userId, albumTitle: albumData.title });
+    await notifyBackend('job_progress', { jobId, userId, progress: 5, message: 'Enviando trabajo al VPS...' });
+    
+    // Enviar trabajo al VPS
+    const vpsResponse = await vpsTranscodingService.submitTranscodingJob(jobData);
+    
+    if (!vpsResponse.success) {
+      return { success: false, message: `Error del VPS: ${vpsResponse.message}` };
+    }
+    
+    // Monitorear progreso del trabajo en el VPS
+    let completed = false;
+    let progress = 10;
+    let attempts = 0;
+    const maxAttempts = 120; // 10 minutos máximo
+    
+    while (!completed && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // Esperar 5 segundos
+      attempts++;
+      
+      try {
+        const status = await vpsTranscodingService.getJobStatus(jobId);
+        
+        if (status.completed) {
+          completed = true;
+          
+          if (status.success) {
+            // Notificar finalización exitosa
+            await notifyBackend('job_completed', { 
+              jobId, 
+              userId, 
+              success: true, 
+              albumId: status.albumId,
+              vpsProcessed: true 
+            });
+            
+            return { 
+              success: true, 
+              albumId: status.albumId,
+              message: 'Procesado exitosamente por VPS'
+            };
+          } else {
+            return { 
+              success: false, 
+              message: `Error en VPS: ${status.error || 'Error desconocido'}` 
+            };
+          }
+        } else {
+          // Actualizar progreso
+          const newProgress = Math.min(progress + 2, 95);
+          if (newProgress > progress) {
+            progress = newProgress;
+            await notifyBackend('job_progress', { 
+              jobId, 
+              userId, 
+              progress, 
+              message: status.message || 'Procesando en VPS...' 
+            });
+          }
+        }
+      } catch (error) {
+        console.error(`Error consultando estado del VPS (intento ${attempts}):`, error);
+        
+        // Si fallan muchos intentos consecutivos, abortar
+        if (attempts > 10) {
+          return { 
+            success: false, 
+            message: 'Perdida comunicación con VPS durante procesamiento' 
+          };
+        }
+      }
+    }
+    
+    // Timeout
+    if (!completed) {
+      await vpsTranscodingService.cancelJob(jobId);
+      return { 
+        success: false, 
+        message: 'Timeout procesando en VPS (10 minutos)' 
+      };
+    }
+    
+  } catch (error: any) {
+    console.error('Error procesando con VPS:', error);
+    return { 
+      success: false, 
+      message: error.message || 'Error desconocido procesando con VPS' 
+    };
+  }
+  
+  return { success: false, message: 'Error inesperado' };
+}
 
 // Función para descargar archivos desde el servidor principal
 async function downloadFiles(tracks: any[], sourcePath: string, workDir: string) {
@@ -284,18 +410,30 @@ async function uploadToIPFS(transcodedFiles: any[], coverImagePath?: string, wor
 // Función para subir archivo individual a IPFS
 async function uploadFileToIPFS(filePath: string): Promise<string> {
   try {
-    // Aquí iría la integración real con IPFS
-    // Por ahora simulamos el upload
-    const fileStats = await fs.stat(filePath);
-    const fileName = path.basename(filePath);
-    
-    // Simular CID basado en archivo
-    const hash = require('crypto').createHash('sha256');
-    hash.update(fileName + fileStats.size);
-    const cid = `Qm${hash.digest('hex').substring(0, 44)}`;
-    
-    console.log(`[IPFS] Subido ${fileName} -> ${cid}`);
-    return cid;
+    // Usar gateway IPFS privada si está habilitada
+    if (ipfsGatewayService.isEnabled()) {
+      const result = await ipfsGatewayService.uploadFile(filePath);
+      
+      // Fijar el CID para asegurar disponibilidad
+      const pinResult = await ipfsGatewayService.pinCID(result.cid);
+      if (!pinResult.success) {
+        console.warn(`[IPFS] Advertencia fijando CID ${result.cid}: ${pinResult.message}`);
+      }
+      
+      console.log(`[IPFS] Subido ${result.name} -> ${result.cid} (${result.size} bytes)`);
+      return result.cid;
+    } else {
+      // Fallback: simular upload para desarrollo
+      const fileStats = await fs.stat(filePath);
+      const fileName = path.basename(filePath);
+      
+      const hash = require('crypto').createHash('sha256');
+      hash.update(fileName + fileStats.size + Date.now());
+      const cid = `Qm${hash.digest('hex').substring(0, 44)}`;
+      
+      console.log(`[IPFS] Simulado ${fileName} -> ${cid} (gateway privada deshabilitada)`);
+      return cid;
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Error subiendo archivo a IPFS: ${errorMessage}`);
@@ -359,9 +497,10 @@ async function createDatabaseRecords(userId: string, albumData: any, ipfsResults
   return album.id;
 }
 
-// Función para notificar al backend
+// Función para notificar al backend y WebSocket
 async function notifyBackend(event: string, data: any) {
   try {
+    // Notificar via HTTP al backend
     await axios.post(`${BACKEND_API_URL}/api/worker/notify`, {
       event,
       data
@@ -372,6 +511,28 @@ async function notifyBackend(event: string, data: any) {
       },
       timeout: 5000
     });
+
+    // Notificar via WebSocket si está disponible
+    const wsService = getWebSocketService();
+    if (wsService && data.userId && data.jobId) {
+      switch (event) {
+        case 'job_started':
+          wsService.notifyJobStarted(data.userId, data.jobId, data.albumTitle || 'Álbum sin título');
+          break;
+        case 'job_progress':
+          wsService.notifyJobProgress(data.userId, data.jobId, data.progress, 'processing', data.message);
+          break;
+        case 'job_completed':
+          if (data.success) {
+            wsService.notifyJobCompleted(data.userId, data.jobId, true, data.albumId);
+          } else {
+            wsService.notifyJobError(data.userId, data.jobId, data.error || 'Error desconocido');
+          }
+          break;
+        default:
+          console.log(`Evento WebSocket no manejado: ${event}`);
+      }
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('Error notificando al backend:', errorMessage);
