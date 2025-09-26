@@ -9,6 +9,7 @@ import SearchBar from "./SearchBar"
 const BellIcon = dynamic(() => import("lucide-react").then(m => m.Bell), { ssr: false })
 const MusicIcon = dynamic(() => import("lucide-react").then(m => m.Music), { ssr: false })
 const SparklesIcon = dynamic(() => import("lucide-react").then(m => m.Sparkles), { ssr: false })
+const UploadIcon = dynamic(() => import("lucide-react").then(m => m.Upload), { ssr: false })
 
 export default function Topbar() {
   const [session, setSession] = useState<SessionResponse | null>(null)
@@ -94,6 +95,20 @@ export default function Topbar() {
 
           {/* Acciones del usuario */}
           <div className="flex items-center gap-3">
+            {/* Botón subir música (solo para usuarios autenticados) */}
+            {session?.authenticated && (
+              <a 
+                href="https://artist.nyauwu.com/upload"
+                className="btn-glass p-2.5 rounded-xl hover-glow group relative flex items-center gap-2 px-4"
+                title="Subir música"
+              >
+                <UploadIcon size={16} className="text-text-secondary group-hover:text-accent-primary transition-colors duration-fast" />
+                <span className="text-sm font-medium text-text-secondary group-hover:text-accent-primary transition-colors duration-fast">
+                  Subir música
+                </span>
+              </a>
+            )}
+
             {/* Botón de notificaciones */}
             <button className="btn-glass p-2.5 rounded-xl hover-glow group relative">
               <BellIcon size={18} className="text-text-secondary group-hover:text-accent-primary transition-colors duration-fast" />
