@@ -122,6 +122,14 @@ export default function TracksPage() {
   };
 
   const handleContinue = () => {
+    // CRÍTICO: Guardar tracks antes de navegar
+    const sessionData = JSON.parse(sessionStorage.getItem('uploadSession') || '{}');
+    sessionData.tracks = tracks;
+    sessionStorage.setItem('uploadSession', JSON.stringify(sessionData));
+    
+    console.log('✅ CONTINUE: Saved', tracks.length, 'tracks to session before navigation');
+    console.log('📦 Session data keys:', Object.keys(sessionData));
+    
     router.push('/upload/metadata');
   };
 
