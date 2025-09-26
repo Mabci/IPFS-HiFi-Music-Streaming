@@ -3,8 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { PrismaClient } from '@prisma/client';
-// TEMPORAL: Comentado para debugging
-// import { addAudioProcessingJob, getJobStatus } from '../services/queue-service.js';
+import { addAudioProcessingJob, getJobStatus } from '../services/queue-service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -291,10 +290,22 @@ router.post('/submit', requireAuth, async (req: any, res) => {
       }
     }
 
-    // TEMPORAL: Skip DB job creation (table doesn't exist)
+    // Crear registro de trabajo en la base de datos
     const jobId = uuidv4();
-    console.log('✅ Generated job ID:', jobId);
-    // const processingJob = await prisma.processingJob.create({...})
+    const processingJob = await prisma.processingJob.create({
+      data: {
+        jobId,
+        userId: req.user.id,
+        status: 'pending',
+        albumData: {
+          ...albumData,
+          tracks,
+          coverImage
+        }
+      }
+    });
+    
+    console.log('✅ ProcessingJob created:', processingJob.id);
 
     // TEMPORAL: Comentado para debugging - simular éxito
     console.log('🎯 TEMPORAL: Skip queue processing, returning success');
@@ -338,9 +349,8 @@ router.get('/status/:jobId', requireAuth, async (req: any, res) => {
       return res.status(404).json({ error: 'Trabajo no encontrado' });
     }
 
-    // TEMPORAL: Comentado para debugging
-    // const queueStatus = await getJobStatus(jobId);
-    const queueStatus = null; // Mock status
+    // Obtener estado de la cola
+    const queueStatus = await getJobStatus(jobId);
 
     res.json({
       success: true,
@@ -351,8 +361,8 @@ router.get('/status/:jobId', requireAuth, async (req: any, res) => {
         completedAt: job.completedAt,
         errorMessage: job.errorMessage,
         albumData: job.albumData,
-        queueProgress: 0, // TEMPORAL: mock values
-        queueState: 'pending' // TEMPORAL: mock values
+        queueProgress: queueStatus?.progress || 0,
+        queueState: queueStatus?.state || 'unknown'
       }
     });
 
