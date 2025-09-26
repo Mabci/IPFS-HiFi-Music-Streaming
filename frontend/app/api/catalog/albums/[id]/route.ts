@@ -4,9 +4,10 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ipfs-hifi-mu
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const { id } = params;
     
     // Llamar al backend para obtener el álbum
