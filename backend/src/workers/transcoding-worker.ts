@@ -461,10 +461,11 @@ async function createDatabaseRecords(userId: string, albumData: any, ipfsResults
   const album = await prisma.album.create({
     data: {
       artistProfileId: artistProfile.id,
+      artistId: artistProfile.id, // AGREGAR EL CAMPO FALTANTE
       title: albumData.title,
-      description: albumData.description,
+      description: albumData.description || '',
       year: albumData.year,
-      genre: albumData.genre,
+      genre: albumData.genre || 'Uncategorized',
       coverCid: ipfsResults.coverCid,
       albumCid: ipfsResults.albumCid,
       totalTracks: ipfsResults.tracks.length,

@@ -43,9 +43,11 @@ model Album {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   artistProfileId  String
+  artistId         String        // Campo adicional para compatibilidad
   genre            String
   uploadedAt       DateTime      @default(now())
   ArtistProfile    ArtistProfile @relation(fields: [artistProfileId], references: [id], onDelete: Cascade)
+  Artist           ArtistProfile @relation("AlbumArtistId", fields: [artistId], references: [id], onDelete: Cascade)
   Track            Track[]
 
   @@index([isPublic])
@@ -174,6 +176,7 @@ model ArtistProfile {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   Album         Album[]
+  AlbumArtist   Album[]  @relation("AlbumArtistId")
   User          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([artistName])
