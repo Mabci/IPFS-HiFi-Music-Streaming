@@ -56,10 +56,23 @@ export default function AlbumPage() {
           return;
         }
         
-        const albumData = await response.json();
-        console.log('🎵 Album data received:', albumData);
-        console.log('🎵 Artist:', albumData.artist);
-        console.log('🎵 Tracks:', albumData.tracks);
+        const responseData = await response.json();
+        console.log('🎵 Raw response received:', responseData);
+        
+        // Manejar tanto formato backend directo como frontend API
+        let albumData;
+        if (responseData.ok && responseData.album) {
+          // Respuesta directa del backend: {ok: true, album: {...}}
+          albumData = responseData.album;
+          console.log('📦 Using backend format, extracted album:', albumData);
+        } else {
+          // Respuesta del frontend API: {...}
+          albumData = responseData;
+          console.log('📦 Using frontend API format:', albumData);
+        }
+        
+        console.log('🎵 Final artist:', albumData.artist);
+        console.log('🎵 Final tracks:', albumData.tracks);
         setAlbum(albumData);
         
       } catch (err) {
