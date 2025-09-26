@@ -90,30 +90,12 @@ export default function MetadataPage() {
     };
     reader.readAsDataURL(file);
 
-    // Subir imagen al servidor
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('coverImage', file);
-      formData.append('sessionId', sessionId);
-
-      const response = await fetch('/api/upload/cover', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        throw new Error('Error subiendo portada');
-      }
-
-      setErrors(prev => ({ ...prev, cover: '' }));
-    } catch (error) {
-      console.error('Error uploading cover:', error);
-      setErrors(prev => ({ ...prev, cover: 'Error subiendo la portada' }));
-    } finally {
-      setUploading(false);
-    }
+    // TEMPORAL: Skip server upload, only store locally
+    console.log('✅ Cover image selected, stored locally only');
+    setErrors(prev => ({ ...prev, cover: '' }));
+    
+    // Removed immediate server upload to prevent flow interruption
+    // Will be uploaded with album data in submit step
   };
 
   const validateForm = () => {
@@ -155,11 +137,15 @@ export default function MetadataPage() {
     uploadSession.albumData = albumData;
     
     // CRÍTICO: Siempre preservar tracks del estado actual
+    console.log('📊 Before preserve - tracks state:', tracks.length, 'tracks loaded');
+    console.log('📊 Tracks content:', tracks.map(t => ({id: t.id, title: t.title})));
+    
     if (tracks.length > 0) {
       uploadSession.tracks = tracks;
       console.log('✅ Preserving', tracks.length, 'tracks in session');
     } else {
       console.warn('⚠️ No tracks to preserve! Current tracks:', tracks);
+      console.warn('⚠️ Session before preserve:', uploadSession);
     }
     
     // Guardar cover image como base64 si existe
