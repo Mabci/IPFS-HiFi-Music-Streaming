@@ -25,10 +25,15 @@ const nextConfig = {
   
   // Reescritura de rutas API para el backend
   async rewrites() {
+    // Asegurar que siempre hay una URL válida para el backend
+    const backendUrl = process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com';
+    
+    console.log('[next.config] Backend URL configurada:', backendUrl);
+    
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com'}/api/:path*`,
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },
