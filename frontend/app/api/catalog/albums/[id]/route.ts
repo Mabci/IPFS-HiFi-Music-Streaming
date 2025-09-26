@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com';
 
 export async function GET(
   request: NextRequest,
@@ -10,71 +9,32 @@ export async function GET(
   try {
     const { id } = params;
     
-    // Buscar álbum con tracks y perfil de artista
-    const album = await prisma.album.findUnique({
-      where: { id },
-      include: {
-        tracks: {
-          orderBy: { trackNumber: 'asc' }
-        },
-        artistProfile: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                email: true,
-                name: true
-              }
-            }
-          }
-        }
-      }
+    // Llamar al backend para obtener el álbum
+    const backendResponse = await fetch(`${BACKEND_URL}/api/catalog/albums/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
     });
 
-    if (!album) {
-      return NextResponse.json(
-        { error: 'Álbum no encontrado' },
-        { status: 404 }
-      );
+    if (!backendResponse.ok) {
+      if (backendResponse.status === 404) {
+        return NextResponse.json(
+          { error: 'Álbum no encontrado' },
+          { status: 404 }
+        );
+      }
+      throw new Error(`Backend error: ${backendResponse.status}`);
     }
 
-    // Formatear respuesta
-    const response = {
-      id: album.id,
-      title: album.title,
-      albumCid: album.albumCid,
-      coverCid: album.coverCid,
-      releaseDate: album.releaseDate,
-      genre: album.genre,
-      description: album.description,
-      totalTracks: album.totalTracks,
-      createdAt: album.createdAt,
-      artist: {
-        id: album.artistProfile.id,
-        name: album.artistProfile.artistName,
-        userId: album.artistProfile.userId,
-        user: album.artistProfile.user
-      },
-      tracks: album.tracks.map(track => ({
-        id: track.id,
-        title: track.title,
-        trackNumber: track.trackNumber,
-        durationSec: track.durationSec,
-        lowQualityCid: track.lowQualityCid,
-        highQualityCid: track.highQualityCid,
-        maxQualityCid: track.maxQualityCid
-      }))
-    };
-
-    return NextResponse.json(response);
+    const albumData = await backendResponse.json();
+    return NextResponse.json(albumData);
     
   } catch (error) {
-    console.error('Error fetching album:', error);
+    console.error('Error fetching album from backend:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
