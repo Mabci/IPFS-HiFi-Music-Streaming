@@ -80,12 +80,35 @@ const requireAuth = async (req: any, res: any, next: any) => {
   
   if (BYPASS_MODE) {
     console.log('🚧 BYPASS MODE: Creating fake user for testing');
-    req.user = {
-      id: 'test-user-123',
-      email: 'test@nyauwu.com',
-      name: 'Test User'
-    };
-    return next();
+    
+    // Crear o encontrar usuario de prueba real en la DB
+    try {
+      let testUser = await prisma.user.findUnique({
+        where: { email: 'test@nyauwu.com' }
+      });
+      
+      if (!testUser) {
+        testUser = await prisma.user.create({
+          data: {
+            email: 'test@nyauwu.com'
+            // Omitir name si no existe en el modelo
+          }
+        });
+        console.log('✅ Created test user:', testUser.id);
+      }
+      
+      req.user = testUser;
+      return next();
+    } catch (error) {
+      console.error('❌ Error creating test user:', error);
+      // Fallback con ID numérico válido
+      req.user = {
+        id: 1, // ID numérico que Prisma puede manejar
+        email: 'test@nyauwu.com',
+        name: 'Test User'
+      };
+      return next();
+    }
   }
   
   try {
@@ -232,6 +255,10 @@ router.post('/cover', requireAuth, multer({
 
 // POST /api/upload/submit - Enviar álbum para procesamiento
 router.post('/submit', requireAuth, async (req: any, res) => {
+  console.log('🎯 Submit endpoint called');
+  console.log('👤 User ID:', req.user?.id);
+  console.log('📦 Request body keys:', Object.keys(req.body));
+  
   try {
     const {
       sessionId,
@@ -239,6 +266,13 @@ router.post('/submit', requireAuth, async (req: any, res) => {
       tracks,
       coverImage
     } = req.body;
+    
+    console.log('📊 Submit data:', {
+      sessionId: !!sessionId,
+      albumData: !!albumData,
+      tracksCount: tracks?.length || 0,
+      coverImage: !!coverImage
+    });
 
     // Validar datos requeridos
     if (!albumData.title || !albumData.artistName || !albumData.year || !albumData.genre) {
@@ -297,10 +331,14 @@ router.post('/submit', requireAuth, async (req: any, res) => {
     });
 
   } catch (error) {
-    console.error('Error enviando álbum:', error);
+    console.error('💥 Error enviando álbum:', error);
+    console.error('📊 Error stack:', error instanceof Error ? error.stack : 'No stack available');
+    console.error('📦 User data:', req.user);
+    
     res.status(500).json({ 
       error: 'Error enviando álbum para procesamiento',
-      details: error instanceof Error ? error.message : 'Error desconocido'
+      details: error instanceof Error ? error.message : 'Error desconocido',
+      stack: error instanceof Error ? error.stack : undefined
     });
   }
 });
