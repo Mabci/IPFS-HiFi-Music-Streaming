@@ -79,12 +79,12 @@ export default function AlbumPage() {
   };
 
   const playAlbum = () => {
-    if (!album) return;
+    if (!album || !album.artist) return;
     
     const queue = album.tracks.map(track => ({
       id: track.id,
       title: track.title,
-      artist: album.artist.name,
+      artist: album.artist?.name || 'Unknown Artist',
       album: album.title,
       duration: track.durationSec,
       fileCid: track.maxQualityCid || track.highQualityCid || track.lowQualityCid,
@@ -96,7 +96,7 @@ export default function AlbumPage() {
       httpUrl: buildGatewayUrl(track.maxQualityCid || track.highQualityCid || track.lowQualityCid),
       meta: {
         title: track.title,
-        artist: album.artist.name,
+        artist: album.artist?.name || 'Unknown Artist',
         album: album.title
       }
     }));
@@ -105,12 +105,12 @@ export default function AlbumPage() {
   };
 
   const playTrack = (trackIndex: number) => {
-    if (!album) return;
+    if (!album || !album.artist) return;
     
     const queue = album.tracks.map(track => ({
       id: track.id,
       title: track.title,
-      artist: album.artist.name,
+      artist: album.artist?.name || 'Unknown Artist',
       album: album.title,
       duration: track.durationSec,
       fileCid: track.maxQualityCid || track.highQualityCid || track.lowQualityCid,
@@ -122,7 +122,7 @@ export default function AlbumPage() {
       httpUrl: buildGatewayUrl(track.maxQualityCid || track.highQualityCid || track.lowQualityCid),
       meta: {
         title: track.title,
-        artist: album.artist.name,
+        artist: album.artist?.name || 'Unknown Artist',
         album: album.title
       }
     }));
@@ -171,7 +171,7 @@ export default function AlbumPage() {
             <p className="text-sm uppercase tracking-wide opacity-80 mb-2">Álbum</p>
             <h1 className="text-4xl md:text-6xl font-bold mb-4">{album.title}</h1>
             <div className="flex items-center gap-2 text-lg mb-4">
-              <span className="font-semibold">{album.artist.name}</span>
+              <span className="font-semibold">{album.artist?.name || 'Unknown Artist'}</span>
               <span>•</span>
               <span>{album.totalTracks} canciones</span>
               {album.releaseDate && (
@@ -235,7 +235,7 @@ export default function AlbumPage() {
                   
                   <div className="flex-1">
                     <h3 className="text-white font-medium">{track.title}</h3>
-                    <p className="text-white/60 text-sm">{album.artist.name}</p>
+                    <p className="text-white/60 text-sm">{album.artist?.name || 'Unknown Artist'}</p>
                   </div>
                   
                   <div className="text-white/60 text-sm">
