@@ -27,12 +27,17 @@ export function useSubdomain(): SubdomainInfo {
       let backendUrl: string;
       let frontendUrl: string;
       
-      if (process.env.NODE_ENV === 'production') {
+      // Detección más robusta del entorno: si hostname contiene los dominios de producción
+      const isProduction = hostname.includes('nyauwu.com') || hostname.includes('vercel.app') || hostname.includes('netlify.app');
+      
+      if (isProduction) {
         backendUrl = 'https://ipfs-hifi-music-streaming.onrender.com';
         frontendUrl = isArtistDomain ? 'https://artist.nyauwu.com' : 'https://nyauwu.com';
+        console.log('🌐 PRODUCTION MODE - Backend URL:', backendUrl);
       } else {
         backendUrl = 'http://localhost:4000';
         frontendUrl = 'http://localhost:3000';
+        console.log('🔧 DEVELOPMENT MODE - Backend URL:', backendUrl);
       }
       
       setSubdomainInfo({
@@ -59,14 +64,20 @@ export function useContextualUrl() {
   };
   
   const getArtistUrl = (path: string = '') => {
-    if (process.env.NODE_ENV === 'production') {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isProduction = hostname.includes('nyauwu.com') || hostname.includes('vercel.app') || hostname.includes('netlify.app');
+    
+    if (isProduction) {
       return `https://artist.nyauwu.com${path}`;
     }
     return `http://localhost:3000${path}`;
   };
   
   const getMainUrl = (path: string = '') => {
-    if (process.env.NODE_ENV === 'production') {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isProduction = hostname.includes('nyauwu.com') || hostname.includes('vercel.app') || hostname.includes('netlify.app');
+    
+    if (isProduction) {
       return `https://nyauwu.com${path}`;
     }
     return `http://localhost:3000${path}`;
