@@ -50,6 +50,8 @@ export default function UploadProgress({
 
   useEffect(() => {
     // Conectar a WebSocket usando URL contextual
+    console.log('🔌 Intentando conectar WebSocket a:', backendUrl);
+    console.log('🔌 UserID:', userId, 'JobID:', jobId);
 
     socketRef.current = io(backendUrl, {
       withCredentials: true,

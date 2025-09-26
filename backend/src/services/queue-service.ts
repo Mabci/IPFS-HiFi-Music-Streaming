@@ -310,8 +310,8 @@ async function uploadFileToIPFS(filePath: string): Promise<string> {
     const result = await ipfsGatewayService.uploadFile(filePath);
     console.log(`✅ Archivo subido a IPFS: ${result.cid} (${result.size} bytes)`);
     
-    // Pin el archivo para asegurar disponibilidad
-    await ipfsGatewayService.pinCID(result.cid);
+    // NOTA: Pin removido - el archivo ya está disponible en IPFS
+    // await ipfsGatewayService.pinCID(result.cid);
     
     return result.cid;
   } catch (error) {
