@@ -9,8 +9,12 @@ interface SubdomainRequest extends Request {
  * Middleware para detectar y manejar subdominios
  */
 export function subdomainHandler(req: SubdomainRequest, res: Response, next: NextFunction) {
-  const host = req.get('host') || '';
-  const hostname = host.split(':')[0]; // Remover puerto si existe
+  // Obtener hostname original (considerando proxies como Vercel)
+  const originalHost = req.get('x-forwarded-host') || req.get('host') || '';
+  const hostname = originalHost.split(':')[0]; // Remover puerto si existe
+  
+  console.log('[subdomain] Original host:', originalHost);
+  console.log('[subdomain] Parsed hostname:', hostname);
   
   // Detectar subdominio
   if (hostname.includes('artist.')) {
@@ -21,8 +25,12 @@ export function subdomainHandler(req: SubdomainRequest, res: Response, next: Nex
     req.isArtistDomain = false;
   }
 
+  console.log('[subdomain] Detected subdomain:', req.subdomain);
+  console.log('[subdomain] Is artist domain:', req.isArtistDomain);
+
   // Agregar headers para identificar el contexto
   res.setHeader('X-Subdomain', req.subdomain);
+  res.setHeader('X-Is-Artist-Domain', req.isArtistDomain ? 'true' : 'false');
   
   next();
 }
