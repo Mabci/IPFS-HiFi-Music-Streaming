@@ -927,8 +927,8 @@ app.post('/api/auth/signout', async (req, res) => {
 app.use('/api/catalog', catalogRoutes)
 app.use('/api/search', searchRoutes)
 
-// Rutas específicas para artistas (solo en artist.nyauwu.com)
-app.use('/api/upload', requireArtistDomain, uploadRoutes)
+// Rutas específicas para artistas (TEMPORAL: sin restricción de dominio para testing)
+app.use('/api/upload', uploadRoutes)  // TEMPORAL: removido requireArtistDomain
 app.use('/api/worker', requireArtistDomain, workerRoutes)
 app.use('/api/vps', requireArtistDomain, vpsStatusRoutes)
 app.use('/api/ipfs', requireArtistDomain, ipfsStatusRoutes)
