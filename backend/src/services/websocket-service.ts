@@ -15,11 +15,14 @@ export class WebSocketService {
           "http://localhost:3000",
           "https://nyauwu.com", 
           "https://artist.nyauwu.com",
+          "https://ipfs-hifi-music-streaming-frontend.onrender.com",
           process.env.FRONTEND_URL || "http://localhost:3000"
         ],
         methods: ["GET", "POST"],
-        credentials: true
-      }
+        credentials: true,
+        allowedHeaders: ["*"]
+      },
+      allowEIO3: true
     });
 
     this.setupEventHandlers();

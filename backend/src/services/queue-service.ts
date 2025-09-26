@@ -323,9 +323,10 @@ async function uploadFileToIPFS(filePath: string): Promise<string> {
 }
 
 function generateAlbumCid(tracks: any[]): string {
-  // Generar CID basado en los tracks
+  // Generar CID basado en los tracks + timestamp para unicidad
   const trackCids = tracks.map(t => t.highQualityCid).join('');
-  return `QmAlbum${trackCids.substring(0, 10)}`;
+  const timestamp = Date.now().toString().substring(-8); // Últimos 8 dígitos
+  return `QmAlbum${trackCids.substring(0, 8)}${timestamp}`;
 }
 
 async function cleanupTempFiles(tempPath: string) {
