@@ -28,8 +28,15 @@ export async function GET(
       throw new Error(`Backend error: ${backendResponse.status}`);
     }
 
-    const albumData = await backendResponse.json();
-    return NextResponse.json(albumData);
+    const response = await backendResponse.json();
+    
+    // El backend devuelve { ok: true, album: {...} }
+    // Extraer solo el album para el frontend
+    if (response.ok && response.album) {
+      return NextResponse.json(response.album);
+    } else {
+      throw new Error('Invalid response structure from backend');
+    }
     
   } catch (error) {
     console.error('Error fetching album from backend:', error);
