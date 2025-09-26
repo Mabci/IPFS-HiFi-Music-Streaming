@@ -224,7 +224,9 @@ router.get('/albums/:id', async (req, res) => {
         title: track.title,
         trackNumber: track.trackNumber,
         durationSec: track.durationSec,
-        trackCid: track.trackCid,
+        lowQualityCid: track.lowQualityCid,
+        highQualityCid: track.highQualityCid,
+        maxQualityCid: track.maxQualityCid,
         playCount: Number(track.playCount)
       }))
     }
@@ -516,7 +518,9 @@ router.get('/albums/:id', async (req, res) => {
             title: true,
             trackNumber: true,
             durationSec: true,
-            trackCid: true,
+            lowQualityCid: true,
+            highQualityCid: true,
+            maxQualityCid: true,
             playCount: true
           },
           orderBy: {
@@ -558,7 +562,9 @@ router.get('/albums/:id', async (req, res) => {
         title: track.title,
         trackNumber: track.trackNumber,
         durationSec: track.durationSec,
-        trackCid: track.trackCid,
+        lowQualityCid: track.lowQualityCid,
+        highQualityCid: track.highQualityCid,
+        maxQualityCid: track.maxQualityCid,
         playCount: Number(track.playCount)
       }))
     }
