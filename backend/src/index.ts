@@ -102,7 +102,12 @@ async function requireAuth(req: any, res: express.Response, next: express.NextFu
       include: { User: true }
     })
     if (!session || session.expires < new Date()) {
-      res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+      res.clearCookie('session', { 
+        httpOnly: true, 
+        sameSite: IS_PROD ? 'none' : 'lax', 
+        secure: IS_PROD,
+        domain: IS_PROD ? '.nyauwu.com' : undefined
+      })
       if (session) {
         await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
       }
@@ -318,7 +323,12 @@ app.get('/api/auth/session', async (req, res) => {
       include: { User: true }
     })
     if (!session || session.expires < new Date()) {
-      res.clearCookie('session', { httpOnly: true, sameSite: 'lax', secure: IS_PROD })
+      res.clearCookie('session', { 
+        httpOnly: true, 
+        sameSite: IS_PROD ? 'none' : 'lax', 
+        secure: IS_PROD,
+        domain: IS_PROD ? '.nyauwu.com' : undefined
+      })
       if (session) {
         await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
       }
@@ -626,6 +636,7 @@ app.post('/api/auth/register', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
+      domain: IS_PROD ? '.nyauwu.com' : undefined, // Cookie válida para todos los subdominios
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
     
@@ -671,6 +682,7 @@ app.post('/api/auth/login', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
+      domain: IS_PROD ? '.nyauwu.com' : undefined, // Cookie válida para todos los subdominios
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
     
