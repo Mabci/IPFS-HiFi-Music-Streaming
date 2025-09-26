@@ -4,6 +4,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import axios from 'axios';
+import * as crypto from 'crypto';
 
 const execAsync = promisify(exec);
 
@@ -24,7 +25,7 @@ console.log('📡 Redis:', `${redisConfig.host}:${redisConfig.port}`);
 console.log('🔗 Backend:', BACKEND_URL);
 
 // Worker de transcodificación
-const transcodingWorker = new Worker('transcoding', async (job) => {
+const transcodingWorker = new Worker('audio processing', async (job: any) => {
   console.log(`[${job.id}] 🎵 Procesando trabajo de transcodificación...`);
   
   try {
@@ -32,7 +33,7 @@ const transcodingWorker = new Worker('transcoding', async (job) => {
     
     // Actualizar progreso
     await job.updateProgress(10);
-    await notifyBackend('processing.started', { jobId: job.id, userId });
+    await notifyBackend('job_started', { jobId: job.id, userId, albumTitle: albumData.title });
     
     // Crear directorio de trabajo
     const workDir = `/tmp/transcoding-${job.id}`;
@@ -72,9 +73,10 @@ const transcodingWorker = new Worker('transcoding', async (job) => {
     await fs.promises.rm(workDir, { recursive: true, force: true });
     
     await job.updateProgress(100);
-    await notifyBackend('processing.completed', { 
+    await notifyBackend('job_completed', { 
       jobId: job.id, 
       userId, 
+      success: true,
       albumId, 
       albumCid 
     });
@@ -92,8 +94,10 @@ const transcodingWorker = new Worker('transcoding', async (job) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`[${job.id}] ❌ Error en procesamiento:`, errorMessage);
     
-    await notifyBackend('processing.failed', { 
+    await notifyBackend('job_completed', { 
       jobId: job.id, 
+      userId: job.data.userId,
+      success: false,
       error: errorMessage 
     });
     
@@ -149,7 +153,7 @@ async function simulateIPFSUpload(filePath: string): Promise<string> {
   const fileName = path.basename(filePath);
   
   // Generar CID simulado basado en archivo
-  const hash = require('crypto').createHash('sha256');
+  const hash = crypto.createHash('sha256');
   hash.update(fileName + stats.size + Date.now());
   const cid = `Qm${hash.digest('hex').substring(0, 44)}`;
   
@@ -160,7 +164,7 @@ async function simulateIPFSUpload(filePath: string): Promise<string> {
 // Crear estructura de álbum
 async function createAlbumStructure(tracks: any[], albumData: any, workDir: string): Promise<string> {
   // Simular creación de estructura de álbum en IPFS
-  const albumHash = require('crypto').createHash('sha256');
+  const albumHash = crypto.createHash('sha256');
   albumHash.update(JSON.stringify({ albumData, tracks }));
   const albumCid = `Qm${albumHash.digest('hex').substring(0, 44)}`;
   
@@ -206,15 +210,15 @@ function sanitizeFilename(filename: string): string {
 }
 
 // Manejo de eventos del worker
-transcodingWorker.on('completed', (job) => {
+transcodingWorker.on('completed', (job: any) => {
   console.log(`✅ Trabajo ${job.id} completado exitosamente`);
 });
 
-transcodingWorker.on('failed', (job, err) => {
+transcodingWorker.on('failed', (job: any, err: any) => {
   console.error(`❌ Trabajo ${job?.id} falló:`, err.message);
 });
 
-transcodingWorker.on('error', (err) => {
+transcodingWorker.on('error', (err: any) => {
   console.error('❌ Error en el worker:', err);
 });
 

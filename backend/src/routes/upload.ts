@@ -117,7 +117,7 @@ const requireAuth = async (req: any, res: any, next: any) => {
 };
 
 // POST /api/upload/files - Subir archivos de audio
-router.post('/files', requireAuth, upload.array('audioFiles', 20), async (req: any, res) => {
+router.post('/files', requireAuth, upload.array('files', 20), async (req: any, res) => {
   console.log('🚀 Upload endpoint called');
   console.log('📁 Files received:', req.files?.length || 0);
   console.log('👤 User:', req.user?.email);
@@ -160,12 +160,15 @@ router.post('/files', requireAuth, upload.array('audioFiles', 20), async (req: a
       })
     );
 
-    res.json({
+    const response = {
       success: true,
       sessionId: sessionId || uuidv4(),
       files: fileMetadata,
       message: `${files.length} archivos subidos exitosamente`
-    });
+    };
+    
+    console.log('📤 Sending response:', JSON.stringify(response, null, 2));
+    res.json(response);
 
   } catch (error) {
     console.error('💥 Error subiendo archivos:', error);

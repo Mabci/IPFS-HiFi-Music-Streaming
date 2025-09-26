@@ -103,7 +103,7 @@ export default function UploadPage() {
       formData.append('sessionId', sessionId);
       
       files.forEach(fileData => {
-        formData.append('audioFiles', fileData.file);
+        formData.append('files', fileData.file);
       });
 
       // Actualizar estado a "uploading"

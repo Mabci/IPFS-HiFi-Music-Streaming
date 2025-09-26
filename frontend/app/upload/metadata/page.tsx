@@ -30,6 +30,16 @@ export default function MetadataPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Helper function para convertir File a base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const genres = [
     'Rock', 'Pop', 'Hip Hop', 'Electronic', 'Jazz', 'Classical', 'Country',
     'R&B', 'Reggae', 'Folk', 'Blues', 'Metal', 'Punk', 'Indie', 'Alternative',
@@ -137,18 +147,33 @@ export default function MetadataPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const continueToPreview = () => {
+  const continueToPreview = async () => {
     if (!validateForm()) return;
 
     // Guardar metadatos en sessionStorage
     const uploadSession = JSON.parse(sessionStorage.getItem('uploadSession') || '{}');
     uploadSession.albumData = albumData;
-    uploadSession.coverImage = coverImage ? {
-      name: coverImage.name,
-      size: coverImage.size,
-      type: coverImage.type
-    } : null;
+    
+    // Guardar cover image como base64 si existe
+    if (coverImage) {
+      try {
+        const base64 = await fileToBase64(coverImage);
+        uploadSession.coverImage = {
+          name: coverImage.name,
+          size: coverImage.size,
+          type: coverImage.type,
+          data: base64 // Guardar como base64 para persistencia
+        };
+      } catch (error) {
+        console.error('Error converting cover to base64:', error);
+        uploadSession.coverImage = null;
+      }
+    } else {
+      uploadSession.coverImage = null;
+    }
+    
     sessionStorage.setItem('uploadSession', JSON.stringify(uploadSession));
+    console.log('✅ Saved session data with', Object.keys(uploadSession));
     
     router.push('/upload/preview');
   };

@@ -51,11 +51,11 @@ export default function PreviewPage() {
     setTracks(sessionTracks || []);
     setAlbumData(sessionAlbumData);
     
-    // Crear preview de la portada si existe
-    if (coverImage) {
-      // En un caso real, aquí cargaríamos la imagen desde el servidor
-      // Por ahora usamos un placeholder
-      setCoverPreview('/api/placeholder/cover');
+    // Recuperar preview de la portada si existe
+    if (coverImage && coverImage.data) {
+      setCoverPreview(coverImage.data); // Usar base64 guardado
+    } else if (coverImage) {
+      console.warn('Cover image found but no data:', coverImage);
     }
     
     setLoading(false);

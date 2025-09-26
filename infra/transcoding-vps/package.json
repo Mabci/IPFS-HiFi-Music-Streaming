@@ -2,11 +2,11 @@
   "name": "transcoding-worker-vps",
   "version": "1.0.0",
   "description": "Worker de transcodificación de audio para VPS dedicado",
-  "main": "dist/workers/transcoding-worker.js",
+  "main": "dist/workers/transcoding-worker-simple.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/workers/transcoding-worker.js",
-    "dev": "tsx src/workers/transcoding-worker.ts",
+    "start": "node dist/workers/transcoding-worker-simple.js",
+    "dev": "tsx src/workers/transcoding-worker-simple.ts",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:stop": "pm2 stop transcoding-worker",
     "pm2:restart": "pm2 restart transcoding-worker",
@@ -20,7 +20,7 @@
   "dependencies": {
     "@prisma/client": "^5.0.0",
     "axios": "^1.5.0",
-    "bull": "^4.11.0",
+    "bullmq": "^4.15.0",
     "dotenv": "^16.3.0",
     "redis": "^4.6.0"
   },

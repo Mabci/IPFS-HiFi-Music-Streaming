@@ -37,13 +37,18 @@ export default function TracksPage() {
 
     try {
       const data = JSON.parse(sessionData);
-      if (data.tracks && Array.isArray(data.tracks)) {
-        const tracksWithNumbers = data.tracks.map((track: any, index: number) => ({
+      // Aceptar tanto 'files' (de upload) como 'tracks' (de ediciones previas)
+      const sourceData = data.tracks || data.files || [];
+      if (Array.isArray(sourceData)) {
+        const tracksWithNumbers = sourceData.map((track: any, index: number) => ({
           ...track,
           trackNumber: index + 1,
           title: track.title || track.originalName.replace(/\.[^/.]+$/, '')
         }));
         setTracks(tracksWithNumbers);
+        console.log('✅ Loaded', tracksWithNumbers.length, 'tracks from session');
+      } else {
+        console.log('❌ No tracks/files found in session data:', data);
       }
     } catch (error) {
       console.error('Error parsing session data:', error);
