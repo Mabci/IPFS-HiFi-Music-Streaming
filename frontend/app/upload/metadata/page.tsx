@@ -150,9 +150,17 @@ export default function MetadataPage() {
   const continueToPreview = async () => {
     if (!validateForm()) return;
 
-    // Guardar metadatos en sessionStorage
+    // Guardar metadatos en sessionStorage PRESERVANDO tracks existentes
     const uploadSession = JSON.parse(sessionStorage.getItem('uploadSession') || '{}');
     uploadSession.albumData = albumData;
+    
+    // CRÍTICO: Siempre preservar tracks del estado actual
+    if (tracks.length > 0) {
+      uploadSession.tracks = tracks;
+      console.log('✅ Preserving', tracks.length, 'tracks in session');
+    } else {
+      console.warn('⚠️ No tracks to preserve! Current tracks:', tracks);
+    }
     
     // Guardar cover image como base64 si existe
     if (coverImage) {
@@ -174,6 +182,12 @@ export default function MetadataPage() {
     
     sessionStorage.setItem('uploadSession', JSON.stringify(uploadSession));
     console.log('✅ Saved session data with', Object.keys(uploadSession));
+    console.log('📊 Session contains:', {
+      tracks: uploadSession.tracks?.length || 0,
+      albumData: !!uploadSession.albumData,
+      coverImage: !!uploadSession.coverImage,
+      sessionId: !!uploadSession.sessionId
+    });
     
     router.push('/upload/preview');
   };

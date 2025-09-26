@@ -40,22 +40,39 @@ export default function PreviewPage() {
       return;
     }
 
-    const { sessionId: id, tracks: sessionTracks, albumData: sessionAlbumData, coverImage } = JSON.parse(uploadSession);
-    
-    if (!sessionAlbumData) {
-      router.push('/upload/metadata');
-      return;
-    }
+    try {
+      const sessionData = JSON.parse(uploadSession);
+      const { sessionId: id, tracks: sessionTracks, albumData: sessionAlbumData, coverImage } = sessionData;
+      
+      console.log('🔍 Preview page - Session data:', {
+        sessionId: !!id,
+        tracks: sessionTracks?.length || 0,
+        albumData: !!sessionAlbumData,
+        coverImage: !!coverImage
+      });
+      
+      if (!sessionAlbumData) {
+        console.log('❌ No album data, redirecting to metadata');
+        router.push('/upload/metadata');
+        return;
+      }
 
-    setSessionId(id);
-    setTracks(sessionTracks || []);
-    setAlbumData(sessionAlbumData);
-    
-    // Recuperar preview de la portada si existe
-    if (coverImage && coverImage.data) {
-      setCoverPreview(coverImage.data); // Usar base64 guardado
-    } else if (coverImage) {
-      console.warn('Cover image found but no data:', coverImage);
+      setSessionId(id);
+      setTracks(sessionTracks || []);
+      setAlbumData(sessionAlbumData);
+      
+      // Recuperar preview de la portada si existe
+      if (coverImage && coverImage.data) {
+        setCoverPreview(coverImage.data); // Usar base64 guardado
+      } else if (coverImage) {
+        console.warn('Cover image found but no data:', coverImage);
+      }
+      
+      console.log('✅ Preview loaded with', sessionTracks?.length || 0, 'tracks');
+    } catch (error) {
+      console.error('❌ Error parsing session data in preview:', error);
+      router.push('/upload');
+      return;
     }
     
     setLoading(false);
