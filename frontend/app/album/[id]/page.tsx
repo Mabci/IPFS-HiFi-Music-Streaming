@@ -79,7 +79,7 @@ export default function AlbumPage() {
   };
 
   const playAlbum = () => {
-    if (!album || !album.artist) return;
+    if (!album || !album.artist || !album.tracks || !Array.isArray(album.tracks)) return;
     
     const queue = album.tracks.map(track => ({
       id: track.id,
@@ -105,7 +105,7 @@ export default function AlbumPage() {
   };
 
   const playTrack = (trackIndex: number) => {
-    if (!album || !album.artist) return;
+    if (!album || !album.artist || !album.tracks || !Array.isArray(album.tracks)) return;
     
     const queue = album.tracks.map(track => ({
       id: track.id,
@@ -215,7 +215,7 @@ export default function AlbumPage() {
           </div>
           
           <div className="divide-y divide-white/10">
-            {album.tracks.map((track, index) => (
+            {album.tracks && Array.isArray(album.tracks) ? album.tracks.map((track, index) => (
               <div
                 key={track.id}
                 className="px-6 py-4 hover:bg-white/5 transition-colors cursor-pointer group"
@@ -243,7 +243,11 @@ export default function AlbumPage() {
                   </div>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="px-6 py-4 text-white/60 text-center">
+                No hay canciones disponibles
+              </div>
+            )}
           </div>
         </div>
       </div>
