@@ -39,7 +39,7 @@ export default function AlbumPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const { setQueue, play } = usePlayerStore();
+  const { loadQueue, playAt } = usePlayerStore();
 
   useEffect(() => {
     const fetchAlbum = async () => {
@@ -101,8 +101,7 @@ export default function AlbumPage() {
       }
     }));
     
-    setQueue(queue);
-    play(0); // Reproducir primera canción
+    loadQueue(queue, 0); // Cargar queue y reproducir primera canción
   };
 
   const playTrack = (trackIndex: number) => {
@@ -128,8 +127,7 @@ export default function AlbumPage() {
       }
     }));
     
-    setQueue(queue);
-    play(trackIndex);
+    loadQueue(queue, trackIndex);
   };
 
   if (loading) {
