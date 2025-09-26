@@ -27,7 +27,7 @@ export class WebSocketService {
 
   private setupEventHandlers() {
     this.io.on('connection', (socket) => {
-      console.log(`Cliente conectado: ${socket.id}`);
+      console.log(`🔌 Cliente conectado: ${socket.id} desde ${socket.handshake.address}`);
 
       // Autenticar usuario
       socket.on('authenticate', async (data: { userId: string }) => {
@@ -90,7 +90,7 @@ export class WebSocketService {
     // Enviar a suscriptores del trabajo específico
     this.io.to(`job:${jobId}`).emit('job_update', notification);
 
-    console.log(`Notificación enviada - Usuario: ${userId}, Trabajo: ${jobId}, Progreso: ${progress}%`);
+    console.log(`📡 WebSocket enviado - Usuario: ${userId}, Job: ${jobId}, Progreso: ${progress}%, Sockets conectados: ${this.io.engine.clientsCount}`);
   }
 
   // Notificar finalización de trabajo

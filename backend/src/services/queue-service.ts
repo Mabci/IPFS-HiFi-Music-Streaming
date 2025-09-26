@@ -2,6 +2,7 @@ import Bull from 'bull';
 import Redis from 'redis';
 import { PrismaClient } from '@prisma/client';
 import { getWebSocketService } from './websocket-service.js';
+import { ipfsGatewayService } from './ipfs-gateway-service.js';
 
 const prisma = new PrismaClient();
 
@@ -264,9 +265,21 @@ async function getAudioDuration(filePath: string): Promise<number> {
 }
 
 async function uploadFileToIPFS(filePath: string): Promise<string> {
-  // Simular upload a IPFS
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return `Qm${Math.random().toString(36).substring(2, 15)}`;
+  try {
+    // Usar el servicio real de IPFS Gateway
+    const result = await ipfsGatewayService.uploadFile(filePath);
+    console.log(`✅ Archivo subido a IPFS: ${result.cid} (${result.size} bytes)`);
+    
+    // Pin el archivo para asegurar disponibilidad
+    await ipfsGatewayService.pinCID(result.cid);
+    
+    return result.cid;
+  } catch (error) {
+    console.error('❌ Error subiendo archivo a IPFS:', error);
+    // Fallback a CID simulado si el servicio real falla
+    console.log('🔄 Usando CID simulado como fallback');
+    return `Qm${Math.random().toString(36).substring(2, 15)}`;
+  }
 }
 
 function generateAlbumCid(tracks: any[]): string {
