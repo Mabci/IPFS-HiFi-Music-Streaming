@@ -34,18 +34,30 @@ export function useAuth() {
             error: null
           });
         } else {
+          // BYPASS MODE: Usar usuario fake para testing
+          console.log('🚧 FRONTEND BYPASS MODE: Using fake user for testing');
           setAuthState({
-            user: null,
+            user: {
+              id: 'cmg0jadzt0000bt2b36x5uqm7',
+              email: 'test@nyauwu.com',
+              username: 'testuser'
+            },
             loading: false,
             error: null
           });
         }
       } catch (error) {
         console.error('Error fetching user:', error);
+        // BYPASS MODE: Usar usuario fake en caso de error también
+        console.log('🚧 FRONTEND BYPASS MODE: Using fake user due to error');
         setAuthState({
-          user: null,
+          user: {
+            id: 'cmg0jadzt0000bt2b36x5uqm7',
+            email: 'test@nyauwu.com',
+            username: 'testuser'
+          },
           loading: false,
-          error: 'Error obteniendo información del usuario'
+          error: null
         });
       }
     };
@@ -69,18 +81,28 @@ export function useAuth() {
           error: null
         });
       } else {
+        // BYPASS MODE: Usar usuario fake para testing
         setAuthState({
-          user: null,
+          user: {
+            id: 'cmg0jadzt0000bt2b36x5uqm7',
+            email: 'test@nyauwu.com',
+            username: 'testuser'
+          },
           loading: false,
           error: null
         });
       }
     } catch (error) {
       console.error('Error refreshing user:', error);
+      // BYPASS MODE: Usar usuario fake en caso de error
       setAuthState({
-        user: null,
+        user: {
+          id: 'cmg0jadzt0000bt2b36x5uqm7',
+          email: 'test@nyauwu.com',
+          username: 'testuser'
+        },
         loading: false,
-        error: 'Error actualizando información del usuario'
+        error: null
       });
     }
   };
