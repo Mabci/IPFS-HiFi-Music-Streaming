@@ -57,6 +57,9 @@ export default function AlbumPage() {
         }
         
         const albumData = await response.json();
+        console.log('🎵 Album data received:', albumData);
+        console.log('🎵 Artist:', albumData.artist);
+        console.log('🎵 Tracks:', albumData.tracks);
         setAlbum(albumData);
         
       } catch (err) {
