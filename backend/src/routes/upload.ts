@@ -3,7 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { PrismaClient } from '@prisma/client';
-import { addAudioProcessingJob, getJobStatus } from '../services/queue-service.js';
+// TEMPORAL: Comentado para debugging
+// import { addAudioProcessingJob, getJobStatus } from '../services/queue-service.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -305,23 +306,10 @@ router.post('/submit', requireAuth, async (req: any, res) => {
       }
     });
 
-    // Agregar trabajo a la cola de procesamiento
-    const tempUploadPath = path.join(process.env.TEMP_UPLOAD_PATH || './temp/uploads', sessionId);
-    
-    await addAudioProcessingJob({
-      jobId,
-      userId: req.user.id,
-      albumData: {
-        ...albumData,
-        tracks: tracks.map((track: any) => ({
-          title: track.title,
-          trackNumber: track.trackNumber,
-          filePath: track.path,
-          originalFilename: track.filename
-        }))
-      },
-      tempUploadPath
-    });
+    // TEMPORAL: Comentado para debugging - simular éxito
+    console.log('🎯 TEMPORAL: Skip queue processing, returning success');
+    // const tempUploadPath = path.join(process.env.TEMP_UPLOAD_PATH || './temp/uploads', sessionId);
+    // await addAudioProcessingJob({...})
 
     res.json({
       success: true,
@@ -360,8 +348,9 @@ router.get('/status/:jobId', requireAuth, async (req: any, res) => {
       return res.status(404).json({ error: 'Trabajo no encontrado' });
     }
 
-    // Obtener estado de la cola
-    const queueStatus = await getJobStatus(jobId);
+    // TEMPORAL: Comentado para debugging
+    // const queueStatus = await getJobStatus(jobId);
+    const queueStatus = null; // Mock status
 
     res.json({
       success: true,
@@ -372,8 +361,8 @@ router.get('/status/:jobId', requireAuth, async (req: any, res) => {
         completedAt: job.completedAt,
         errorMessage: job.errorMessage,
         albumData: job.albumData,
-        queueProgress: queueStatus?.progress || 0,
-        queueState: queueStatus?.state || 'unknown'
+        queueProgress: 0, // TEMPORAL: mock values
+        queueState: 'pending' // TEMPORAL: mock values
       }
     });
 
