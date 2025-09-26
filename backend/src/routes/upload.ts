@@ -307,10 +307,30 @@ router.post('/submit', requireAuth, async (req: any, res) => {
     
     console.log('✅ ProcessingJob created:', processingJob.id);
 
-    // TEMPORAL: Comentado para debugging - simular éxito
-    console.log('🎯 TEMPORAL: Skip queue processing, returning success');
-    // const tempUploadPath = path.join(process.env.TEMP_UPLOAD_PATH || './temp/uploads', sessionId);
-    // await addAudioProcessingJob({...})
+    // Agregar trabajo a la cola de procesamiento
+    const tempUploadPath = path.join(process.env.TEMP_UPLOAD_PATH || '/tmp/uploads', sessionId);
+    
+    try {
+      await addAudioProcessingJob({
+        jobId,
+        userId: req.user.id,
+        albumData: {
+          ...albumData,
+          tracks: tracks.map((track: any) => ({
+            title: track.title,
+            trackNumber: track.trackNumber,
+            filePath: track.path,
+            originalFilename: track.filename
+          }))
+        },
+        tempUploadPath
+      });
+      
+      console.log('✅ Queue job added successfully:', jobId);
+    } catch (queueError) {
+      console.error('⚠️ Queue service error (continuing anyway):', queueError);
+      // Don't fail the request if queue fails - ProcessingJob is already created
+    }
 
     res.json({
       success: true,
