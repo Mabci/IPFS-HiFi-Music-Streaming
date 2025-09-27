@@ -34,12 +34,21 @@ export async function signOut() {
 // Intercambiar token OAuth por cookie de sesión
 export async function exchangeOAuthToken(token: string): Promise<boolean> {
   try {
+    console.log('🔄 Attempting token exchange for:', token.substring(0, 10) + '...')
+    console.log('🌐 Backend URL:', backendBase)
+    
     const response = await fetch(`${backendBase}/api/auth/exchange-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({ token })
     })
+    
+    console.log('📡 Token exchange response:', response.status, response.ok)
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Token exchange failed:', errorText)
+    }
     
     return response.ok
   } catch (error) {
@@ -59,6 +68,10 @@ export function handleOAuthCallback(): Promise<boolean> {
     const urlParams = new URLSearchParams(window.location.search)
     const oauthToken = urlParams.get('oauth_token')
     
+    console.log('🔍 Checking for OAuth token in URL...')
+    console.log('🔗 Current URL:', window.location.href)
+    console.log('🎫 OAuth token found:', oauthToken ? 'YES' : 'NO')
+    
     if (!oauthToken) {
       resolve(false)
       return
@@ -67,9 +80,11 @@ export function handleOAuthCallback(): Promise<boolean> {
     // Limpiar URL inmediatamente
     const cleanUrl = window.location.pathname
     window.history.replaceState({}, document.title, cleanUrl)
+    console.log('🧹 URL cleaned to:', cleanUrl)
     
     // Intercambiar token por cookie
     exchangeOAuthToken(oauthToken).then(success => {
+      console.log('✅ Token exchange result:', success)
       resolve(success)
     })
   })
