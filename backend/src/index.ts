@@ -91,7 +91,7 @@ setInterval(async () => {
 
 
 // Middleware para exigir sesión
-async function requireAuth(req: any, res: express.Response, next: express.NextFunction) {
+export async function requireAuth(req: any, res: express.Response, next: express.NextFunction) {
   try {
     const token = req?.cookies?.session as string | undefined
     if (!token) {

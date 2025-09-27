@@ -70,74 +70,8 @@ const upload = multer({
   }
 });
 
-// Middleware de autenticación (TEMPORAL: bypass habilitado para testing)
-const requireAuth = async (req: any, res: any, next: any) => {
-  console.log('🔐 Auth middleware called for:', req.originalUrl);
-  console.log('🍪 Cookies received:', Object.keys(req.cookies || {}));
-  
-  // BYPASS TEMPORAL para testing - crear usuario fake
-  const BYPASS_MODE = process.env.BYPASS_AUTH === 'true'; // REMOVED: || true
-  
-  if (BYPASS_MODE) {
-    console.log('🚧 BYPASS MODE: Creating fake user for testing');
-    
-    // Crear o encontrar usuario de prueba real en la DB
-    try {
-      let testUser = await prisma.user.findUnique({
-        where: { email: 'test@nyauwu.com' }
-      });
-      
-      if (!testUser) {
-        testUser = await prisma.user.create({
-          data: {
-            email: 'test@nyauwu.com'
-            // Omitir name si no existe en el modelo
-          }
-        });
-        console.log('✅ Created test user:', testUser.id);
-      }
-      
-      req.user = testUser;
-      return next();
-    } catch (error) {
-      console.error('❌ Error creating test user:', error);
-      // Fallback con ID numérico válido
-      req.user = {
-        id: 1, // ID numérico que Prisma puede manejar
-        email: 'test@nyauwu.com',
-        name: 'Test User'
-      };
-      return next();
-    }
-  }
-  
-  try {
-    const sessionToken = req.cookies.session;
-    if (!sessionToken) {
-      console.log('❌ No session token found');
-      return res.status(401).json({ error: 'No autenticado' });
-    }
-
-    console.log('🔍 Looking for session with token:', sessionToken.substring(0, 10) + '...');
-    
-    const session = await prisma.session.findUnique({
-      where: { sessionToken },
-      include: { User: true }
-    });
-
-    if (!session || session.expires < new Date()) {
-      console.log('❌ Session not found or expired');
-      return res.status(401).json({ error: 'Sesión expirada' });
-    }
-
-    console.log('✅ User authenticated:', session.User.email);
-    req.user = session.User;
-    next();
-  } catch (error) {
-    console.error('💥 Error en autenticación:', error);
-    res.status(500).json({ error: 'Error de autenticación' });
-  }
-};
+// Import the main requireAuth middleware from index.ts
+import { requireAuth } from '../index.js';
 
 // POST /api/upload/files - Subir archivos de audio
 router.post('/files', requireAuth, upload.array('files', 20), async (req: any, res) => {
