@@ -76,7 +76,7 @@ const requireAuth = async (req: any, res: any, next: any) => {
   console.log('🍪 Cookies received:', Object.keys(req.cookies || {}));
   
   // BYPASS TEMPORAL para testing - crear usuario fake
-  const BYPASS_MODE = process.env.BYPASS_AUTH === 'true' || true; // temporal: siempre true
+  const BYPASS_MODE = process.env.BYPASS_AUTH === 'true'; // REMOVED: || true
   
   if (BYPASS_MODE) {
     console.log('🚧 BYPASS MODE: Creating fake user for testing');
