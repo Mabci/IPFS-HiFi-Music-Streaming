@@ -54,6 +54,7 @@ export function useAuth() {
   }, []);
 
   const refreshUser = async () => {
+    console.log('🔄 Refreshing user authentication state...');
     setAuthState(prev => ({ ...prev, loading: true }));
     
     try {
@@ -61,14 +62,18 @@ export function useAuth() {
         credentials: 'include'
       });
 
+      console.log('🔍 /api/me response:', response.status, response.ok);
+
       if (response.ok) {
         const userData = await response.json();
+        console.log('✅ User data received:', userData.user?.email);
         setAuthState({
           user: userData.user,
           loading: false,
           error: null
         });
       } else {
+        console.log('❌ Authentication failed');
         setAuthState({
           user: null,
           loading: false,

@@ -42,9 +42,16 @@ export default function Topbar() {
           console.log('OAuth token intercambiado exitosamente')
         }
         
-        // Luego obtener sesión actual
+        // Luego obtener sesión actual (especialmente importante después de exchange)
         const s = await getSession()
         if (mounted) setSession(s)
+        
+        // Si el token exchange fue exitoso, hacer un segundo getSession para asegurar estado actualizado
+        if (oauthSuccess) {
+          console.log('🔄 Refreshing session after successful token exchange...')
+          const refreshedSession = await getSession()
+          if (mounted) setSession(refreshedSession)
+        }
       } finally {
         if (mounted) setLoading(false)
       }
