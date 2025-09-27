@@ -46,7 +46,7 @@ const ProgressivePlayer = forwardRef<ProgressivePlayerRef, ProgressivePlayerProp
   onError,
   className,
   hybridMode = true,
-  gatewayUrl = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://localhost:8443/ipfs'
+  gatewayUrl = process.env.NEXT_PUBLIC_IPFS_GATEWAY || 'https://gateway.nyauwu.com/ipfs'
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null)
   const loaderRef = useRef<any>(null)
