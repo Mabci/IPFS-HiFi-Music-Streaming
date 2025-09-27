@@ -892,6 +892,7 @@ app.post('/api/auth/exchange-token', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
+      domain: IS_PROD ? '.nyauwu.com' : undefined, // Allow subdomain sharing
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
     
