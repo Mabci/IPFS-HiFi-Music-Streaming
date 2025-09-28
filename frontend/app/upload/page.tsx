@@ -29,18 +29,29 @@ export default function UploadPage() {
     const checkAuth = async () => {
       try {
         // Verificar si estamos en el dominio correcto para upload
-        if (typeof window !== 'undefined' && !window.location.hostname.includes('artist.')) {
-          // Redirigir al subdominio de artistas
-          const artistUrl = window.location.href.replace(window.location.hostname, 'artist.nyauwu.com');
-          window.location.href = artistUrl;
-          return;
+        if (typeof window !== 'undefined') {
+          const hostname = window.location.hostname;
+          const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+          const isArtistDomain = hostname.includes('artist.');
+          
+          // Si estamos en localhost, no necesitamos redirigir (desarrollo local)
+          // Si estamos en producción pero NO es el dominio artist, redirigir
+          if (!isLocalhost && !isArtistDomain) {
+            const artistUrl = window.location.href.replace(hostname, 'artist.nyauwu.com');
+            window.location.href = artistUrl;
+            return;
+          }
         }
 
+        console.log('🎵 Upload page: Checking session...')
         const session = await getSession();
+        console.log('🎵 Upload page: Session result:', session)
         if (!session.authenticated) {
+          console.log('🎵 Upload page: Not authenticated, redirecting to /auth')
           router.push('/auth');
           return;
         }
+        console.log('🎵 Upload page: Authenticated! Setting state...')
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Error verificando autenticación:', error);
@@ -109,7 +120,11 @@ export default function UploadPage() {
       // Actualizar estado a "uploading"
       setFiles(prev => prev.map(f => ({ ...f, status: 'uploading' as const })));
 
-      const response = await fetch('/api/upload/files', {
+      const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:4000' 
+        : 'https://ipfs-hifi-music-streaming.onrender.com'
+      
+      const response = await fetch(`${backendUrl}/api/upload/files`, {
         method: 'POST',
         body: formData,
         credentials: 'include'

@@ -1,16 +1,18 @@
 import 'dotenv/config';
 import Bull from 'bull';
-import { spawn } from 'child_process';
-import fs from 'fs/promises';
-import path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
+import FormData from 'form-data';
+import crypto from 'crypto';
 import { vpsTranscodingService } from '../services/vps-transcoding-service.js';
 import { ipfsGatewayService } from '../services/ipfs-gateway-service.js';
 import { getWebSocketService } from '../services/websocket-service.js';
 
 const prisma = new PrismaClient();
-
 // Configuración de Redis (debe coincidir con el servidor principal)
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -58,6 +60,8 @@ audioProcessingQueue.process(WORKER_CONCURRENCY, async (job: Bull.Job<AudioProce
   
   console.log(`[Worker] Iniciando procesamiento del trabajo: ${jobId}`);
   console.log(`[Worker] VPS habilitado: ${VPS_ENABLED}`);
+  console.log(`[Worker] VPS Service enabled: ${vpsTranscodingService.isEnabled()}`);
+  console.log(`[Worker] Cover image path: ${albumData.coverImagePath}`);
   
   try {
     // Intentar usar VPS si está habilitado
@@ -276,26 +280,27 @@ async function transcodeAudioFiles(files: any[], workDir: string) {
     
     // Transcodificar a calidad baja (M4A 128kbps)
     await runFFmpeg(file.localPath, qualities.low, [
+      '-vn',  // Ignorar streams de video (covers embebidos)
       '-c:a', 'aac',
       '-b:a', '128k',
       '-ar', '44100',
-      '-ac', '2'
+      '-f', 'ipod'
     ]);
     
     // Transcodificar a calidad alta (FLAC 16-bit)
     await runFFmpeg(file.localPath, qualities.high, [
+      '-vn',  // Ignorar streams de video (covers embebidos)
       '-c:a', 'flac',
       '-sample_fmt', 's16',
-      '-ar', '44100',
-      '-ac', '2'
+      '-ar', '44100'
     ]);
     
     // Transcodificar a calidad máxima (FLAC 24-bit)
     await runFFmpeg(file.localPath, qualities.max, [
+      '-vn',  // Ignorar streams de video (covers embebidos)
       '-c:a', 'flac',
       '-sample_fmt', 's32',
-      '-ar', '96000',
-      '-ac', '2'
+      '-ar', '96000'
     ]);
     
     transcodedFiles.push({
@@ -547,7 +552,7 @@ function sanitizeFilename(filename: string): string {
 
 function generateAlbumCid(tracks: any[]): string {
   const trackCids = tracks.map(t => t.highQualityCid).join('');
-  const hash = require('crypto').createHash('sha256');
+  const hash = crypto.createHash('sha256');
   hash.update(trackCids);
   return `QmAlbum${hash.digest('hex').substring(0, 40)}`;
 }

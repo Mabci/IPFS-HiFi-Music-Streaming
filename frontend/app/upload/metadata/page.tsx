@@ -90,12 +90,9 @@ export default function MetadataPage() {
     };
     reader.readAsDataURL(file);
 
-    // TEMPORAL: Skip server upload, only store locally
-    console.log('✅ Cover image selected, stored locally only');
+    // Cover image will be processed and uploaded to IPFS in final submit step
+    console.log('🖼️ Cover image selected and ready for upload');
     setErrors(prev => ({ ...prev, cover: '' }));
-    
-    // Removed immediate server upload to prevent flow interruption
-    // Will be uploaded with album data in submit step
   };
 
   const validateForm = () => {

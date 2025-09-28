@@ -49,12 +49,14 @@ export interface AudioProcessingJobData {
 }
 
 // Procesador de trabajos de audio
-audioProcessingQueue.process(async (job: Bull.Job<AudioProcessingJobData>) => {
+export async function processAudioJob(job: any, wsService?: any) {
   const { jobId, userId, albumData, tempUploadPath } = job.data;
-  const wsService = getWebSocketService();
-
+  
+  console.log(`📂 Iniciando procesamiento del Trabajo: ${jobId}`);
+  console.log(`👤 Usuario: ${userId}, Álbum: ${albumData.title}`);
+  console.log(`🖼️ Album data coverImagePath:`, albumData.coverImagePath);
+  
   try {
-    // Notificar inicio del trabajo
     wsService?.notifyJobStarted(userId, jobId, albumData.title);
     
     // Actualizar estado a "processing"
@@ -94,7 +96,7 @@ audioProcessingQueue.process(async (job: Bull.Job<AudioProcessingJobData>) => {
     wsService?.notifyJobCompleted(userId, jobId, false, undefined, errorMessage);
     throw error;
   }
-});
+}
 
 // Función para actualizar estado del trabajo
 async function updateJobStatus(jobId: string, status: string, errorMessage?: string) {
@@ -147,6 +149,8 @@ async function transcodeAudioFiles(tracks: any[], tempPath: string) {
 
 // Función para subir archivos a IPFS
 async function uploadToIPFS(transcodedFiles: any[], coverImagePath?: string) {
+  console.log('📤 uploadToIPFS called with coverImagePath:', coverImagePath);
+  
   const ipfsResults = {
     albumCid: '',
     coverCid: '',
@@ -155,7 +159,15 @@ async function uploadToIPFS(transcodedFiles: any[], coverImagePath?: string) {
   
   // Subir cover si existe
   if (coverImagePath) {
-    ipfsResults.coverCid = await uploadFileToIPFS(coverImagePath);
+    console.log('🖼️ Uploading cover to IPFS:', coverImagePath);
+    try {
+      ipfsResults.coverCid = await uploadFileToIPFS(coverImagePath);
+      console.log('✅ Cover uploaded to IPFS:', ipfsResults.coverCid);
+    } catch (error) {
+      console.error('❌ Error uploading cover to IPFS:', error);
+    }
+  } else {
+    console.log('ℹ️ No cover image path provided');
   }
   
   // Subir tracks

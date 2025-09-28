@@ -19,16 +19,17 @@ const nextConfig = {
   
   // Configuración para Vercel deployment
   env: {
-    BACKEND_URL: process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com',
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com',
+    BACKEND_URL: process.env.BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://ipfs-hifi-music-streaming.onrender.com' : 'http://localhost:4000'),
+    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://ipfs-hifi-music-streaming.onrender.com' : 'http://localhost:4000'),
   },
   
   // Reescritura de rutas API para el backend
   async rewrites() {
     // Asegurar que siempre hay una URL válida para el backend
-    const backendUrl = process.env.BACKEND_URL || 'https://ipfs-hifi-music-streaming.onrender.com';
+    const backendUrl = process.env.BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://ipfs-hifi-music-streaming.onrender.com' : 'http://localhost:4000');
     
     console.log('[next.config] Backend URL configurada:', backendUrl);
+    console.log('[next.config] NODE_ENV:', process.env.NODE_ENV);
     
     return [
       {

@@ -15,6 +15,11 @@ export interface ProgressivePlayerRef {
   getDuration: () => number
   getVolume: () => number
   setVolume: (volume: number) => void
+  // New helpers for readiness/buffering and fine control
+  getReadyState: () => number
+  hasFutureData: (minSeconds?: number, atTime?: number) => boolean
+  setPlaybackRate: (rate: number) => void
+  setMuted: (muted: boolean) => void
 }
 
 interface ProgressivePlayerProps {
@@ -85,6 +90,31 @@ const ProgressivePlayer = forwardRef<ProgressivePlayerRef, ProgressivePlayerProp
     setVolume: (vol: number) => {
       if (audioRef.current) {
         audioRef.current.volume = Math.max(0, Math.min(1, vol))
+      }
+    },
+    getReadyState: () => {
+      return audioRef.current?.readyState ?? 0
+    },
+    hasFutureData: (minSeconds: number = 0.5, atTime?: number) => {
+      const a = audioRef.current
+      if (!a) return false
+      const t = typeof atTime === 'number' ? atTime : a.currentTime
+      const buf = a.buffered
+      for (let i = 0; i < buf.length; i++) {
+        const start = buf.start(i)
+        const end = buf.end(i)
+        if (start <= t && end >= t + minSeconds) return true
+      }
+      return false
+    },
+    setPlaybackRate: (rate: number) => {
+      if (audioRef.current) {
+        audioRef.current.playbackRate = rate
+      }
+    },
+    setMuted: (muted: boolean) => {
+      if (audioRef.current) {
+        audioRef.current.muted = muted
       }
     }
   }), [])

@@ -22,7 +22,13 @@ export function useAuth() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const response = await fetch('/api/me', {
+        console.log('🔄 useAuth: Fetching user session...')
+        const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+          ? 'http://localhost:4000' 
+          : 'https://ipfs-hifi-music-streaming.onrender.com'
+        
+        console.log('🌐 useAuth: Backend URL:', backendUrl)
+        const response = await fetch(`${backendUrl}/api/auth/session`, {
           credentials: 'include'
         });
 

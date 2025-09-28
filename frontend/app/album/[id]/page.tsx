@@ -104,6 +104,7 @@ export default function AlbumPage() {
       album: album.title,
       duration: track.durationSec,
       fileCid: track.maxQualityCid || track.highQualityCid || track.lowQualityCid,
+      coverCid: album.coverCid, // Cover del álbum independiente de la calidad
       qualities: {
         low: track.lowQualityCid,
         high: track.highQualityCid,
@@ -130,6 +131,7 @@ export default function AlbumPage() {
       album: album.title,
       duration: track.durationSec,
       fileCid: track.maxQualityCid || track.highQualityCid || track.lowQualityCid,
+      coverCid: album.coverCid, // Cover del álbum independiente de la calidad
       qualities: {
         low: track.lowQualityCid,
         high: track.highQualityCid,

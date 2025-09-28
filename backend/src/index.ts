@@ -13,6 +13,7 @@ import vpsStatusRoutes from './routes/vps-status.js';
 import ipfsStatusRoutes from './routes/ipfs-status.js';
 import { subdomainHandler, requireArtistDomain } from './middleware/subdomain-handler.js';
 import { initializeWebSocketService } from './services/websocket-service.js';
+import './workers/transcoding-worker.js';
 import {
   isValidEmail,
   isValidPassword,
@@ -93,10 +94,13 @@ setInterval(async () => {
 // Middleware para exigir sesión
 export async function requireAuth(req: any, res: express.Response, next: express.NextFunction) {
   try {
+    console.log('🔐 RequireAuth - cookies received:', Object.keys(req.cookies || {}))
     const token = req?.cookies?.session as string | undefined
     if (!token) {
+      console.log('❌ No session token found')
       return res.status(401).json({ ok: false, error: 'unauthorized' })
     }
+    console.log('✅ Session token found:', token.substring(0, 10) + '...')
     const session = await prisma.session.findUnique({
       where: { sessionToken: token },
       include: { User: true }
@@ -106,7 +110,7 @@ export async function requireAuth(req: any, res: express.Response, next: express
         httpOnly: true, 
         sameSite: IS_PROD ? 'none' : 'lax', 
         secure: IS_PROD,
-        domain: IS_PROD ? '.nyauwu.com' : undefined
+        domain: IS_PROD ? '.nyauwu.com' : '.localhost'
       })
       if (session) {
         await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
@@ -125,6 +129,7 @@ function isValidLikeType(t?: string): t is 'track' | 'album' {
   return t === 'track' || t === 'album'
 }
 
+// Health check endpoint  
 app.get('/api/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`
@@ -136,8 +141,7 @@ app.get('/api/health', async (_req, res) => {
   }
 })
 
-// Inicia el flujo OAuth con Google
-app.get('/api/auth/google', async (_req, res) => {
+app.get('/api/auth/google', async (req, res) => {
   try {
     if (!GOOGLE_CLIENT_ID || !GOOGLE_REDIRECT_URI) {
       return res.status(500).json({ ok: false, error: 'google_oauth_not_configured' })
@@ -315,19 +319,33 @@ app.get('/api/auth/google/callback', async (req, res) => {
 // Devuelve la sesión actual
 app.get('/api/auth/session', async (req, res) => {
   try {
+    console.log('🔍 /api/auth/session - cookies received:', Object.keys((req as any).cookies || {}))
     const token = (req as any).cookies?.session as string | undefined
-    if (!token) return res.json({ authenticated: false })
+    if (!token) {
+      console.log('❌ No session token in cookies')
+      return res.json({ authenticated: false })
+    }
+    console.log('✅ Session token found:', token.substring(0, 10) + '...')
 
     const session = await prisma.session.findUnique({
       where: { sessionToken: token },
       include: { User: true }
     })
+    
+    console.log('🔍 Session lookup result:', session ? 'FOUND' : 'NOT FOUND')
+    if (session) {
+      console.log('📅 Session expires:', session.expires)
+      console.log('🕐 Current time:', new Date())
+      console.log('⏰ Is expired?', session.expires < new Date())
+    }
+    
     if (!session || session.expires < new Date()) {
+      console.log('❌ Session invalid or expired, clearing cookie')
       res.clearCookie('session', { 
         httpOnly: true, 
         sameSite: IS_PROD ? 'none' : 'lax', 
         secure: IS_PROD,
-        domain: IS_PROD ? '.nyauwu.com' : undefined
+        domain: IS_PROD ? '.nyauwu.com' : '.localhost'
       })
       if (session) {
         await prisma.session.delete({ where: { sessionToken: token } }).catch(() => {})
@@ -336,6 +354,7 @@ app.get('/api/auth/session', async (req, res) => {
     }
 
     const { id, email } = session.User
+    console.log('✅ Session valid! User:', email)
     return res.json({ authenticated: true, user: { id, email } })
   } catch (e) {
     console.error('[auth/session] error:', e)
@@ -636,7 +655,7 @@ app.post('/api/auth/register', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
-      domain: IS_PROD ? '.nyauwu.com' : undefined, // Cookie válida para todos los subdominios
+      domain: IS_PROD ? '.nyauwu.com' : '.localhost', // Cookie válida para todos los subdominios
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
     
@@ -682,7 +701,7 @@ app.post('/api/auth/login', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
-      domain: IS_PROD ? '.nyauwu.com' : undefined, // Cookie válida para todos los subdominios
+      domain: IS_PROD ? '.nyauwu.com' : '.localhost', // Cookie válida para todos los subdominios
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
     
@@ -892,9 +911,12 @@ app.post('/api/auth/exchange-token', async (req, res) => {
       httpOnly: true,
       sameSite: IS_PROD ? 'none' : 'lax',
       secure: IS_PROD,
-      domain: IS_PROD ? '.nyauwu.com' : undefined, // Allow subdomain sharing
+      domain: IS_PROD ? '.nyauwu.com' : '.localhost', // Allow subdomain sharing in local dev
+      path: '/', // Ensure cookie is available for all paths
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     })
+    
+    console.log('🍪 Cookie established for session:', token.substring(0, 10) + '...')
     
     return res.json({ 
       ok: true, 

@@ -1,20 +1,17 @@
 "use client"
 
-import dynamic from "next/dynamic"
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { getSession, signInGoogle, signOut, handleOAuthCallback, type SessionResponse } from "@/lib/auth"
-import SearchBar from "./SearchBar"
-
-const BellIcon = dynamic(() => import("lucide-react").then(m => m.Bell), { ssr: false })
-const MusicIcon = dynamic(() => import("lucide-react").then(m => m.Music), { ssr: false })
-const SparklesIcon = dynamic(() => import("lucide-react").then(m => m.Sparkles), { ssr: false })
-const UploadIcon = dynamic(() => import("lucide-react").then(m => m.Upload), { ssr: false })
+import { useState, useEffect } from 'react'
+import { signInGoogle, getSession, signOut, handleOAuthCallback, SessionResponse } from '../lib/auth'
+import { BellIcon, MusicIcon, SparklesIcon, UploadIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useContextualUrl } from '../lib/hooks/useSubdomain'
+import SearchBar from './SearchBar'
 
 export default function Topbar() {
   const [session, setSession] = useState<SessionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const { getArtistUrl } = useContextualUrl()
   
   const handleSearchResultSelect = (result: any) => {
     // Navegar al resultado seleccionado
@@ -44,6 +41,7 @@ export default function Topbar() {
         
         // Luego obtener sesión actual (especialmente importante después de exchange)
         const s = await getSession()
+        console.log('🔄 Topbar: Setting session state:', s)
         if (mounted) setSession(s)
         
         // Si el token exchange fue exitoso, hacer un segundo getSession para asegurar estado actualizado
@@ -105,7 +103,7 @@ export default function Topbar() {
             {/* Botón subir música (solo para usuarios autenticados) */}
             {session?.authenticated && (
               <a 
-                href="https://artist.nyauwu.com/upload"
+                href={getArtistUrl('/upload')}
                 className="btn-glass p-2.5 rounded-xl hover-glow group relative flex items-center gap-2 px-4"
                 title="Subir música"
               >
@@ -123,9 +121,11 @@ export default function Topbar() {
             </button>
 
             {/* Estado de autenticación */}
-            {loading ? (
-              <div className="h-10 w-28 animate-pulse rounded-xl bg-bg-surface/60" />
-            ) : session?.authenticated ? (
+            {(() => {
+              console.log('🎭 Topbar render - loading:', loading, 'session:', session)
+              return loading ? (
+                <div className="h-10 w-28 animate-pulse rounded-xl bg-bg-surface/60" />
+              ) : session?.authenticated ? (
               <div className="flex items-center gap-3">
                 {/* Avatar del usuario */}
                 <div className="relative">
@@ -159,7 +159,8 @@ export default function Topbar() {
                 <SparklesIcon size={16} />
                 Iniciar sesión
               </button>
-            )}
+            )
+            })()}
           </div>
         </div>
       </div>

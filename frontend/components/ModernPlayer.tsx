@@ -124,16 +124,125 @@ export default function ModernPlayer() {
   
   // Determinar si usar streaming progresivo con calidades
   const useProgressive = currentItem?.qualities && Object.keys(currentItem.qualities).length > 0
-  const progressiveCid = useProgressive ? (currentItem?.qualities?.high || currentItem?.qualities?.low || currentItem?.fileCid) : undefined
   
-  // Debug logging
-  console.log('ModernPlayer debug:', {
-    useProgressive,
-    progressiveCid,
-    currentItemQualities: currentItem?.qualities,
-    currentItemFileCid: currentItem?.fileCid,
-    currentItemId: currentItem?.id
-  })
+  // Estado para la calidad seleccionada
+  const [selectedQuality, setSelectedQuality] = useState<'low' | 'high' | 'max'>('max')
+  // Calidad pendiente para próxima reproducción
+  const [pendingQuality, setPendingQuality] = useState<'low' | 'high' | 'max' | null>(null)
+  
+  // Estado para restaurar posición durante quality switching
+  const [switchingState, setSwitchingState] = useState<{
+    time: number
+    wasPlaying: boolean
+    switching: boolean
+  }>({ time: 0, wasPlaying: false, switching: false })
+  
+  // Estado para notificación temporal
+  const [notification, setNotification] = useState<string | null>(null)
+
+  // CID actual basado en la calidad seleccionada
+  const currentCid = useMemo(() => {
+    if (!currentItem?.qualities) {
+      console.log('🔍 currentCid: No qualities, usando fileCid:', currentItem?.fileCid)
+      return currentItem?.fileCid
+    }
+    
+    const cidsByQuality = {
+      low: currentItem.qualities.low,
+      high: currentItem.qualities.high,
+      max: currentItem.qualities.max
+    }
+    
+    const selectedCid = cidsByQuality[selectedQuality] || currentItem.fileCid
+    console.log('🔍 currentCid recalculado:', { selectedQuality, selectedCid })
+    
+    return selectedCid
+  }, [currentItem?.qualities, currentItem?.fileCid, selectedQuality])
+  
+  // URL progresiva basada en la calidad seleccionada
+  const progressiveSrc = useMemo(() => {
+    return currentCid ? buildGatewayUrl(currentCid) : undefined
+  }, [currentCid])
+
+  // Aplicar calidad pendiente solo al cambiar de canción (no al cambiar pendingQuality)
+  const [lastTrackId, setLastTrackId] = useState<string | undefined>(undefined)
+  
+  useEffect(() => {
+    // Solo aplicar si cambió el track (no la primera vez)
+    if (currentItem?.id && currentItem.id !== lastTrackId) {
+      if (lastTrackId !== undefined) {
+        applyPendingQuality()
+      }
+      setLastTrackId(currentItem.id)
+    }
+  }, [currentItem?.id]) // Solo depende del ID del track, no de pendingQuality
+
+  // Debug logging simple
+  useEffect(() => {
+    console.log('ModernPlayer debug:', {
+      useProgressive,
+      currentCid,
+      selectedQuality,
+      pendingQuality,
+      currentItemId: currentItem?.id
+    })
+  }, [currentItem?.id, selectedQuality, pendingQuality])
+
+  // Función simplificada para cambiar calidad (aplica en próxima reproducción si está sonando)
+  const handleQualityChange = async (quality: 'Baja' | 'Alta' | 'Max') => {
+    console.log('🔍 Quality change requested:', { quality, isPlaying })
+    
+    if (!currentItem?.qualities) {
+      console.warn('❌ No hay calidades disponibles para este track')
+      return
+    }
+
+    const qualityKey = quality === 'Baja' ? 'low' : quality === 'Alta' ? 'high' : 'max'
+    
+    // Si ya está en la calidad seleccionada, no hacer nada
+    if (qualityKey === selectedQuality && !pendingQuality) {
+      console.log('🎵 Ya está en la calidad seleccionada')
+      return
+    }
+    
+    // Si no está reproduciendo, aplicar cambio inmediatamente 
+    if (!isPlaying) {
+      console.log('✅ No está reproduciendo, aplicando cambio inmediatamente')
+      setSelectedQuality(qualityKey)
+      setPendingQuality(null) // Limpiar cualquier pendiente
+      return
+    }
+    
+    // Si está reproduciendo, NO cambiar selectedQuality, solo guardar como pendiente
+    console.log('🎵 Reproduciendo: programando cambio para próxima canción')
+    console.log('🔍 Estado antes del cambio:', { selectedQuality, pendingQuality, isPlaying })
+    
+    setPendingQuality(qualityKey)
+    
+    // Mostrar notificación visual
+    setNotification('Los cambios se aplicarán en la próxima reproducción')
+    setTimeout(() => setNotification(null), 3000) // Se quita después de 3 segundos
+    
+    console.log('📢 Calidad pendiente guardada:', qualityKey)
+    console.log('🔍 Estado después del cambio:', { selectedQuality, pendingQuality: qualityKey, isPlaying })
+  }
+
+  // Función para mostrar notificación temporal
+  const showNotification = (message: string, duration: number = 3000) => {
+    setNotification(message)
+    setTimeout(() => setNotification(null), duration)
+  }
+
+  // Función helper para aplicar calidad pendiente
+  const applyPendingQuality = () => {
+    if (pendingQuality) {
+      console.log('🔄 Aplicando calidad pendiente:', pendingQuality)
+      setSelectedQuality(pendingQuality)
+      setPendingQuality(null)
+      return true
+    }
+    return false
+  }
 
   // Consultar likes
   useEffect(() => {
@@ -191,6 +300,19 @@ export default function ModernPlayer() {
       setLoading(true)
       try {
         const preMeta = queueMode ? currentItem?.meta : undefined
+        
+        console.log('🖼️ Debug cover loading:', {
+          queueMode,
+          currentItemCoverCid: currentItem?.coverCid,
+          currentItemFileCid: currentItem?.fileCid
+        })
+
+        // Si hay coverCid en el QueueItem, usarlo directamente (independiente de la calidad)
+        if (queueMode && currentItem?.coverCid) {
+          console.log('🖼️ Usando coverCid del álbum:', currentItem.coverCid)
+          setCoverUrl(buildGatewayUrl(currentItem.coverCid))
+        }
+        
         if (p2pEnabled && (queueMode ? currentItem?.fileCid : cid)) {
           const targetCid = queueMode ? (currentItem?.fileCid || '') : cid
           const blob = await fetchFileToBlob(targetCid)
@@ -204,21 +326,33 @@ export default function ModernPlayer() {
           
           if (preMeta) {
             setMeta(preMeta)
-            setCoverUrl(preMeta.coverUrl)
+            // Solo usar coverUrl de metadata si no hay coverCid específico del álbum
+            if (!currentItem?.coverCid) {
+              setCoverUrl(preMeta.coverUrl)
+            }
           } else {
             const m = await extractFromBlob(blob)
             setMeta(m)
-            setCoverUrl(m.coverUrl)
+            // Solo usar coverUrl de metadata si no hay coverCid específico del álbum
+            if (!currentItem?.coverCid) {
+              setCoverUrl(m.coverUrl)
+            }
           }
         } else if (httpSrc) {
           setBlobUrl(undefined)
           if (preMeta) {
             setMeta(preMeta)
-            setCoverUrl(preMeta.coverUrl)
+            // Solo usar coverUrl de metadata si no hay coverCid específico del álbum
+            if (!currentItem?.coverCid) {
+              setCoverUrl(preMeta.coverUrl)
+            }
           } else {
             const m = await extractFromHttp(httpSrc)
             setMeta(m)
-            setCoverUrl(m.coverUrl)
+            // Solo usar coverUrl de metadata si no hay coverCid específico del álbum
+            if (!currentItem?.coverCid) {
+              setCoverUrl(m.coverUrl)
+            }
           }
         }
       } catch (err) {
@@ -236,29 +370,26 @@ export default function ModernPlayer() {
       cancelled = true
       if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl)
     }
-  }, [queueMode, currentItem?.fileCid, cid, p2pEnabled, httpSrc])
+  }, [queueMode, currentItem?.fileCid, currentItem?.coverCid, cid, p2pEnabled, httpSrc])
 
-  // Sincronizar volumen
+  // Sincronizar volumen simple
   useEffect(() => {
     if (useProgressive && progressivePlayerRef.current) {
-      // Usar Progressive player
       progressivePlayerRef.current.setVolume(volume)
     } else if (audioRef.current) {
-      // Usar audio nativo
       audioRef.current.volume = volume
     }
   }, [volume, useProgressive])
 
   const onPlayPause = async () => {
     if (useProgressive && progressivePlayerRef.current) {
-      // Usar Progressive player
       if (isPlaying) {
         progressivePlayerRef.current.pause()
       } else {
         try {
           await progressivePlayerRef.current.play()
         } catch (e) {
-          console.error(e)
+          console.error('❌ Progressive play error:', e)
         }
       }
     } else {
@@ -269,7 +400,7 @@ export default function ModernPlayer() {
         try {
           await a.play()
         } catch (e) {
-          console.error(e)
+          console.error('❌ Native audio play error:', e)
         }
       } else {
         a.pause()
@@ -281,12 +412,9 @@ export default function ModernPlayer() {
     const v = vals[0] ?? 0
     setSeeking(null)
     
-    if (useProgressive && progressivePlayerRef.current) {
-      // Usar Progressive player
-      if (!Number.isNaN(v)) {
-        progressivePlayerRef.current.seek(v)
-        setCurrentTime(v)
-      }
+    if (useProgressive && progressivePlayerRef.current && !Number.isNaN(v)) {
+      progressivePlayerRef.current.seek(v)
+      setCurrentTime(v)
     } else {
       // Usar audio nativo
       const a = audioRef.current
@@ -475,7 +603,9 @@ export default function ModernPlayer() {
             bitrate={meta.bitrateKbps || 320}
             sampleRate={meta.sampleRateHz || 44100}
             bitDepth={meta.bitsPerSample || 16}
-            lossless={meta.lossless}
+            onQualityChange={handleQualityChange}
+            currentQuality={selectedQuality === 'low' ? 'Baja' : selectedQuality === 'high' ? 'Alta' : 'Max'}
+            pendingQuality={pendingQuality === 'low' ? 'Baja' : pendingQuality === 'high' ? 'Alta' : pendingQuality === 'max' ? 'Max' : undefined}
           />
 
           {/* Control de volumen */}
@@ -512,16 +642,43 @@ export default function ModernPlayer() {
         </div>
       </div>
 
-      {/* Reproductor progresivo o audio nativo */}
-      {useProgressive && progressiveCid ? (
+      {/* Notificación temporal fuera del reproductor */}
+      {notification && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-black/90 text-white px-4 py-2 rounded-lg backdrop-blur-sm z-[9999] animate-in fade-in duration-300 border border-white/20 shadow-lg">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+            <span className="text-sm font-medium">{notification}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ProgressivePlayer simplificado */}
+      {useProgressive && currentCid ? (
         <ProgressivePlayer
           ref={progressivePlayerRef}
-          cid={progressiveCid}
-          src={src}
+          cid={p2pEnabled ? currentCid : undefined}
+          src={progressiveSrc}
           onLoadedMetadata={() => {
             if (progressivePlayerRef.current) {
               setDuration(progressivePlayerRef.current.getDuration() || 0)
-              if (isPlaying) {
+              
+              // Restaurar estado si switching tradicional
+              if (switchingState.switching) {
+                console.log('🎵 Restaurando estado después de quality switch:', switchingState)
+                
+                if (switchingState.time > 0) {
+                  progressivePlayerRef.current.seek(switchingState.time)
+                  setCurrentTime(switchingState.time)
+                }
+                
+                if (switchingState.wasPlaying) {
+                  progressivePlayerRef.current.play().catch(console.error)
+                }
+                
+                setSwitchingState({ time: 0, wasPlaying: false, switching: false })
+                console.log('✅ Estado restaurado exitosamente')
+                
+              } else if (isPlaying) {
                 progressivePlayerRef.current.play().catch(console.error)
               }
             }
@@ -534,9 +691,23 @@ export default function ModernPlayer() {
           onEnded={() => {
             if (queueMode) {
               if (repeat === 'one') {
-                if (progressivePlayerRef.current) {
-                  progressivePlayerRef.current.seek(0)
-                  progressivePlayerRef.current.play().catch(console.error)
+                // Aplicar calidad pendiente antes de repetir
+                const qualityApplied = applyPendingQuality()
+                if (qualityApplied) {
+                  console.log('🔄 Calidad aplicada en bucle, esperando nuevo player...')
+                  // Esperar un poco para que se cargue el nuevo player con la nueva calidad
+                  setTimeout(() => {
+                    if (progressivePlayerRef.current) {
+                      progressivePlayerRef.current.seek(0)
+                      progressivePlayerRef.current.play().catch(console.error)
+                    }
+                  }, 100)
+                } else {
+                  // Sin cambio de calidad, repetir normalmente
+                  if (progressivePlayerRef.current) {
+                    progressivePlayerRef.current.seek(0)
+                    progressivePlayerRef.current.play().catch(console.error)
+                  }
                 }
               } else {
                 nextInQueue()
@@ -566,10 +737,25 @@ export default function ModernPlayer() {
           onEnded={() => {
             if (queueMode) {
               if (repeat === 'one') {
-                const a = audioRef.current
-                if (a) {
-                  a.currentTime = 0
-                  a.play().catch(console.error)
+                // Aplicar calidad pendiente antes de repetir
+                const qualityApplied = applyPendingQuality()
+                if (qualityApplied) {
+                  console.log('🔄 Calidad aplicada en bucle (HTML audio), esperando nuevo src...')
+                  // Esperar un poco para que se cargue el nuevo src
+                  setTimeout(() => {
+                    const a = audioRef.current
+                    if (a) {
+                      a.currentTime = 0
+                      a.play().catch(console.error)
+                    }
+                  }, 100)
+                } else {
+                  // Sin cambio de calidad, repetir normalmente
+                  const a = audioRef.current
+                  if (a) {
+                    a.currentTime = 0
+                    a.play().catch(console.error)
+                  }
                 }
               } else {
                 nextInQueue()

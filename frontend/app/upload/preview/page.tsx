@@ -85,7 +85,11 @@ export default function PreviewPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/upload/submit', {
+      const backendUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:4000' 
+        : 'https://ipfs-hifi-music-streaming.onrender.com'
+      
+      const response = await fetch(`${backendUrl}/api/upload/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -100,7 +104,10 @@ export default function PreviewPage() {
             filename: track.filename,
             path: track.path
           })),
-          coverImage: true // Indicar que hay portada
+          coverImage: coverPreview ? {
+            data: coverPreview,
+            filename: 'cover.jpg'
+          } : null
         })
       });
 

@@ -1,20 +1,32 @@
-import { createHelia, type Helia } from 'helia'
-import { unixfs, type UnixFS } from '@helia/unixfs'
-import { CID } from 'multiformats/cid'
+// Dynamic imports to prevent SSR issues
+let heliaInstance: any = null
+let unixfsInstance: any = null
 
-let heliaInstance: Helia | null = null
-let unixfsInstance: UnixFS | null = null
-
-async function getHelia(): Promise<Helia> {
+async function getHelia(): Promise<any> {
+  // Only run in browser, not server-side
+  if (typeof window === 'undefined') {
+    throw new Error('Helia can only be used in browser environment')
+  }
+  
   if (heliaInstance) return heliaInstance
+  
+  // Dynamic imports to avoid SSR processing
+  const { createHelia } = await import('helia')
+  
   // Usamos configuración por defecto de Helia para navegador.
   // Más adelante podremos añadir WebRTC, delegated routing explícito y blockstore persistente (IDB).
   heliaInstance = await createHelia()
   return heliaInstance
 }
 
-export async function getUnixFS(): Promise<UnixFS> {
+export async function getUnixFS(): Promise<any> {
+  if (typeof window === 'undefined') {
+    throw new Error('Helia can only be used in browser environment')
+  }
+  
   if (unixfsInstance) return unixfsInstance
+  
+  const { unixfs } = await import('@helia/unixfs')
   const helia = await getHelia()
   unixfsInstance = unixfs(helia)
   return unixfsInstance
@@ -22,6 +34,11 @@ export async function getUnixFS(): Promise<UnixFS> {
 
 // Descarga el archivo desde Helia (P2P/HTTP trustless si aplica) y devuelve un Blob
 export async function fetchFileToBlob(cid: string): Promise<Blob> {
+  if (typeof window === 'undefined') {
+    throw new Error('Helia can only be used in browser environment')
+  }
+  
+  const { CID } = await import('multiformats/cid')
   const fs = await getUnixFS()
   const chunks: BlobPart[] = []
   for await (const chunk of fs.cat(CID.parse(cid))) {
@@ -64,6 +81,11 @@ function hasAudioExt(name: string): boolean {
 
 // Lista archivos de audio (nivel raíz) dentro de un CID de directorio y los ordena
 export async function listAlbumTracks(albumCid: string): Promise<AlbumTrackEntry[]> {
+  if (typeof window === 'undefined') {
+    throw new Error('Helia can only be used in browser environment')
+  }
+  
+  const { CID } = await import('multiformats/cid')
   const fs = await getUnixFS()
   const out: AlbumTrackEntry[] = []
   for await (const entry of fs.ls(CID.parse(albumCid))) {

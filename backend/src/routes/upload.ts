@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { addAudioProcessingJob, getJobStatus } from '../services/queue-service.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -224,6 +225,42 @@ router.post('/submit', requireAuth, async (req: any, res) => {
       }
     }
 
+    // Procesar imagen de cover si existe
+    let coverImagePath = null;
+    if (coverImage && coverImage.data) {
+      console.log('🖼️ Processing cover image...');
+      console.log('🔍 Cover image type:', typeof coverImage.data);
+      console.log('🔍 Cover image starts with:', coverImage.data.substring(0, 50));
+      
+      try {
+        // Decodificar base64 y guardar archivo
+        const base64Data = coverImage.data.replace(/^data:image\/[a-z]+;base64,/, '');
+        const coverBuffer = Buffer.from(base64Data, 'base64');
+        
+        console.log('📊 Cover buffer size:', coverBuffer.length);
+        
+        const tempDir = process.env.TEMP_UPLOAD_PATH || '/tmp/uploads';
+        
+        // Crear directorio si no existe
+        if (!fsSync.existsSync(tempDir)) {
+          console.log('📁 Creating temp directory:', tempDir);
+          fsSync.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        coverImagePath = path.join(tempDir, `${sessionId}_cover.jpg`);
+        fsSync.writeFileSync(coverImagePath, coverBuffer);
+        
+        console.log('✅ Cover image saved:', coverImagePath);
+        console.log('📏 File size:', fsSync.statSync(coverImagePath).size);
+      } catch (error) {
+        console.error('❌ Error saving cover image:', error);
+        console.error('❌ Error details:', error instanceof Error ? error.message : String(error));
+        return res.status(400).json({ error: 'Error procesando imagen de cover' });
+      }
+    } else {
+      console.log('ℹ️ No cover image provided');
+    }
+
     // Crear registro de trabajo en la base de datos
     const jobId = uuidv4();
     const processingJob = await prisma.processingJob.create({
@@ -234,7 +271,7 @@ router.post('/submit', requireAuth, async (req: any, res) => {
         albumData: {
           ...albumData,
           tracks,
-          coverImage
+          coverImagePath
         }
       }
     });
@@ -255,7 +292,8 @@ router.post('/submit', requireAuth, async (req: any, res) => {
             trackNumber: track.trackNumber,
             filePath: track.path,
             originalFilename: track.filename
-          }))
+          })),
+          coverImagePath
         },
         tempUploadPath
       });

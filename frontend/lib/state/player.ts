@@ -8,6 +8,7 @@ export type QueueItem = {
   id: string
   fileCid?: string
   albumCid?: string
+  coverCid?: string  // CID del cover del álbum (independiente de la calidad)
   path?: string
   httpUrl?: string
   blobUrl?: string

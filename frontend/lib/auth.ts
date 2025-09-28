@@ -1,4 +1,30 @@
-export const backendBase = process.env.NEXT_PUBLIC_BACKEND_URL || (process.env.NODE_ENV === 'production' ? 'https://ipfs-hifi-music-streaming.onrender.com' : 'http://localhost:4000')
+// Function to get backend URL dynamically
+function getBackendUrl(): string {
+  // Check if we have an explicit override
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL
+  }
+  
+  // During SSR, assume development (will be corrected in browser)
+  if (typeof window === 'undefined') {
+    return 'http://localhost:4000'
+  }
+  
+  // In browser, check hostname more thoroughly
+  const hostname = window.location.hostname
+  const isLocal = hostname === 'localhost' || 
+                  hostname === '127.0.0.1' || 
+                  hostname.startsWith('192.168.') ||
+                  hostname.endsWith('.local')
+  
+  console.log('🌐 Hostname detected:', hostname, '| isLocal:', isLocal)
+  
+  return isLocal
+    ? 'http://localhost:4000' 
+    : 'https://ipfs-hifi-music-streaming.onrender.com'
+}
+
+export const backendBase = getBackendUrl()
 
 export type SessionResponse = {
   authenticated: boolean
@@ -11,21 +37,39 @@ export type SessionResponse = {
 }
 
 export async function getSession(): Promise<SessionResponse> {
-  const res = await fetch(`${backendBase}/api/auth/session`, {
-    credentials: 'include',
-  })
-  if (!res.ok) return { authenticated: false }
-  return res.json()
+  // Skip session check during SSR
+  if (typeof window === 'undefined') {
+    return { authenticated: false }
+  }
+  
+  try {
+    const backendUrl = getBackendUrl() // Get URL dynamically
+    console.log('📞 getSession called - Backend URL:', backendUrl)
+    const res = await fetch(`${backendUrl}/api/auth/session`, {
+      credentials: 'include',
+    })
+    console.log('📡 getSession response:', res.status, res.ok)
+    if (!res.ok) return { authenticated: false }
+    
+    const sessionData = await res.json()
+    console.log('📋 Session data received:', sessionData)
+    return sessionData
+  } catch (error) {
+    console.error('Error fetching session:', error)
+    return { authenticated: false }
+  }
 }
 
 export function signInGoogle() {
   if (typeof window !== 'undefined') {
-    window.location.href = `${backendBase}/api/auth/google`
+    const backendUrl = getBackendUrl()
+    window.location.href = `${backendUrl}/api/auth/google`
   }
 }
 
 export async function signOut() {
-  await fetch(`${backendBase}/api/auth/signout`, {
+  const backendUrl = getBackendUrl()
+  await fetch(`${backendUrl}/api/auth/signout`, {
     method: 'POST',
     credentials: 'include',
   })
@@ -34,10 +78,11 @@ export async function signOut() {
 // Intercambiar token OAuth por cookie de sesión
 export async function exchangeOAuthToken(token: string): Promise<boolean> {
   try {
+    const backendUrl = getBackendUrl()
     console.log('🔄 Attempting token exchange for:', token.substring(0, 10) + '...')
-    console.log('🌐 Backend URL:', backendBase)
+    console.log('🌐 Backend URL:', backendUrl)
     
-    const response = await fetch(`${backendBase}/api/auth/exchange-token`, {
+    const response = await fetch(`${backendUrl}/api/auth/exchange-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -68,9 +113,7 @@ export function handleOAuthCallback(): Promise<boolean> {
     const urlParams = new URLSearchParams(window.location.search)
     const oauthToken = urlParams.get('oauth_token')
     
-    console.log('🔍 Checking for OAuth token in URL...')
-    console.log('🔗 Current URL:', window.location.href)
-    console.log('🎫 OAuth token found:', oauthToken ? 'YES' : 'NO')
+    // Removed confusing OAuth token logs - this is normal behavior
     
     if (!oauthToken) {
       resolve(false)
